@@ -1,8 +1,15 @@
 {
   "mcpServers": {
     "cockroachdb-docs": {
-      "type": "url",
+      "type": "http",
       "url": "https://cockroachdb.mcp.kapa.ai"
+    },
+    "cockroachdb-cloud": {
+      "type": "http",
+      "url": "https://cockroachlabs.cloud/mcp",
+      "headers": {
+        "mcp-cluster-id": "b9a6fb80-f28c-4fd8-99d0-2603d342473b"
+      }
     }
   }
 }
