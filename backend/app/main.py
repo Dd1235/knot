@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.api.ledger import router as ledger_router
 from app.db.pool import close_pool, open_pool, pool
 
 
@@ -14,6 +15,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Ledger", lifespan=lifespan)
+app.include_router(ledger_router)
 
 
 @app.get("/healthz")
