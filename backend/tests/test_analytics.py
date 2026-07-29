@@ -322,3 +322,68 @@ def test_backfilled_entries_are_dated_to_their_own_period():
     assert _period_start("monthly", "2026-06", 1).date().isoformat() == "2026-06-01"
     # Due-day clamps to short months.
     assert _period_start("monthly", "2026-02", 31).date().isoformat() == "2026-02-28"
+
+
+async def test_rhythm_ranks_merchants_by_count_not_amount(user):
+    """76% of UPI transactions are under ₹500 — ranking by rupees would hide
+    the user's actual daily life, so this module counts."""
+    for _ in range(5):
+        await spend(user, "40", "food", "chai")
+    await spend(user, "6000", "rent", "july rent")
+
+    result = await analytics.rhythm(user, 30)
+    assert result["top_merchants"][0]["merchant"] == "chai"
+    assert result["top_merchants"][0]["times"] == 5
+    assert result["top_merchants"][1]["merchant"] == "july rent"
+    assert result["transactions"] == 6
+    assert result["per_active_day"] == 6.0
+
+
+async def test_safe_to_spend_sets_aside_only_what_is_due_before_payday(user):
+    """A commitment after the next salary does not constrain today."""
+    from app.agent.registry import ToolContext
+    from app.agent.tools import money_tools
+
+    ctx = ToolContext(user_handle=user, session_id=f"s-{uuid.uuid4().hex[:8]}")
+    await money_tools.set_opening_balance(ctx, {"amount": 50000, "account": "bank"})
+    # Salary on the 1st, rent on the 5th: rent lands after the next payday.
+    await recurring.upsert_commitment(
+        user, "salary", Decimal("60000"), due_day=1, direction="received", category="salary"
+    )
+    await recurring.upsert_commitment(user, "rent", Decimal("12000"), due_day=5)
+
+    result = await analytics.safe_to_spend(user)
+    assert result["liquid"] == "50000.00"
+    assert result["next_income"]["name"] == "salary"
+    # Whatever is claimed must never exceed the commitments themselves.
+    assert Decimal(result["claimed"]) <= Decimal("12000")
+    assert Decimal(result["available"]) == Decimal(result["liquid"]) - Decimal(result["claimed"])
+
+
+async def test_cash_float_counts_only_bank_to_cash_transfers(user):
+    """Income credited to cash is not cash-in-hand; counting it would make
+    the unaccounted figure meaningless."""
+    from app.agent.registry import ToolContext
+    from app.agent.tools import money_tools
+
+    ctx = ToolContext(user_handle=user, session_id=f"s-{uuid.uuid4().hex[:8]}")
+    await money_tools.set_opening_balance(ctx, {"amount": 50000, "account": "bank"})
+    # Salary paid into cash — NOT a withdrawal.
+    await service.post_transaction(
+        user,
+        "salary",
+        [LegSpec("cash", Decimal("60000")), LegSpec("income:salary", Decimal("-60000"))],
+        category="salary",
+    )
+    assert (await analytics.cash_float(user))["withdrawn"] == "0.00"
+
+    await money_tools.withdraw_cash(ctx, {"amount": 5000})
+    after = await analytics.cash_float(user)
+    assert after["withdrawn"] == "5000.00"
+
+    await money_tools.log_cash_spend(
+        ctx, {"amount": 1200, "description": "vegetables", "category": "groceries"}
+    )
+    closed = await analytics.cash_float(user)
+    assert closed["accounted"] == "1200.00"
+    assert closed["unaccounted"] == "3800.00"
