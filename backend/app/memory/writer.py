@@ -29,11 +29,24 @@ ANNOTATION_KINDS = {"recurrence", "price_change", "outlier", "frequency", "day_t
 # Thresholds that decide whether ANYTHING is worth saying. Left to the model,
 # it annotates ~93% of rows with things like "1 time this month" — true, and
 # useless. The bar lives here so it is deterministic and tunable.
-HABIT_REPEATS = 3          # a merchant is a habit only after this many in a month
+# Annotate CHANGE, not state.
+#
+# Two rounds of threshold tuning produced notes like "29 visits this month" —
+# true, and worthless, because the user knows where they eat. No threshold
+# fixes that, because the problem was never how often a habit fires; it was
+# that an established habit is not news to the person living it.
+#
+# So a settled habit earns nothing. What earns a word is a habit that just
+# FORMED, a charge that looks like a subscription worth tracking, a price that
+# moved, or a day that got away from you.
+HABIT_REPEATS = 3          # a habit that just formed: this many, none before
+# A subscription repeats at the same amount across MONTHS. Counting same-amount
+# charges alone called a 38-rupee bus fare a subscription, because it is the
+# same 38 rupees every morning.
+SUBSCRIPTION_MONTHS = 2
 OUTLIER_RATIO = 2.0        # this much above the category median is remarkable
 CHEAP_RATIO = 0.4          # ...or this much below
-# A median over two chais is not a baseline. Without this, a ₹180 coffee gets
-# compared to a ₹17.50 "typical food spend" and the note reads as nonsense.
+# A median over two visits is not a baseline.
 MIN_SAMPLES_FOR_MEDIAN = 5
 BUSY_DAY_TXNS = 8          # a running total is only interesting on a busy day
 
@@ -61,6 +74,11 @@ empty, the annotation MUST be null — the transaction is unremarkable, which is
 the normal case. Never annotate a first visit, a single occurrence, or a
 running total unless that kind is listed.
 
+Say what CHANGED, never what merely IS. "29 visits this month" is true and
+useless — the user knows where they eat. "First month you've made this a
+habit" or "same 649 for the third month" tells them something they did not
+already know.
+
 NEVER: judge or moralise ("that's a lot for coffee"), restate the row
 ("₹120 at Swiggy"), praise ("great job!"), or state a number not given to you."""
 
@@ -86,6 +104,18 @@ async def _context_packet(user_handle: str, transaction_id, description: str) ->
                    AND t.occurred_at >= date_trunc('month', me.occurred_at)) AS merchant_this_month,
                 (SELECT count(*) FROM transactions AS t, me
                  WHERE t.user_id = me.user_id AND lower(t.description) = lower(%s)
+                   AND t.occurred_at <  date_trunc('month', me.occurred_at)
+                   AND t.occurred_at >= date_trunc('month', me.occurred_at)
+                                        - INTERVAL '1 month') AS merchant_prior_month,
+                (SELECT count(DISTINCT date_trunc('month', t.occurred_at))
+                 FROM transactions AS t, me
+                 WHERE t.user_id = me.user_id AND lower(t.description) = lower(%s)
+                   AND t.id != me.id
+                   AND (SELECT COALESCE(SUM(l.amount) FILTER (WHERE l.amount > 0), 0)
+                        FROM transaction_legs AS l
+                        WHERE l.transaction_id = t.id) = me.amount) AS same_amount_months,
+                (SELECT count(*) FROM transactions AS t, me
+                 WHERE t.user_id = me.user_id AND lower(t.description) = lower(%s)
                    AND t.occurred_at >= me.occurred_at - INTERVAL '7 days') AS merchant_this_week,
                 (SELECT min(t.occurred_at) FROM transactions AS t, me
                  WHERE t.user_id = me.user_id
@@ -95,13 +125,13 @@ async def _context_packet(user_handle: str, transaction_id, description: str) ->
                               FROM transaction_legs AS l
                               WHERE l.transaction_id = t.id)::FLOAT)
                  FROM transactions AS t, me
-                 WHERE t.user_id = me.user_id AND t.category = me.category
+                 WHERE t.user_id = me.user_id AND lower(t.description) = lower(%s)
                    AND t.id != me.id
-                   AND t.occurred_at >= me.occurred_at - INTERVAL '90 days') AS category_median,
+                   AND t.occurred_at >= me.occurred_at - INTERVAL '180 days') AS merchant_median,
                 (SELECT count(*) FROM transactions AS t, me
-                 WHERE t.user_id = me.user_id AND t.category = me.category
+                 WHERE t.user_id = me.user_id AND lower(t.description) = lower(%s)
                    AND t.id != me.id
-                   AND t.occurred_at >= me.occurred_at - INTERVAL '90 days') AS category_sample,
+                   AND t.occurred_at >= me.occurred_at - INTERVAL '180 days') AS merchant_sample,
                 (SELECT count(*) FROM transactions AS t, me
                  WHERE t.user_id = me.user_id
                    AND (t.occurred_at AT TIME ZONE 'Asia/Kolkata')::DATE
@@ -126,7 +156,8 @@ async def _context_packet(user_handle: str, transaction_id, description: str) ->
                        = (me.occurred_at AT TIME ZONE 'Asia/Kolkata')::DATE
                 ) AS day_total_already
             """,
-            (transaction_id, user_handle, description, description, description, description),
+            (transaction_id, user_handle, description, description, description,
+             description, description, description, description, description),
         )
         cur.row_factory = dict_row
         row = await cur.fetchone()
@@ -135,7 +166,7 @@ async def _context_packet(user_handle: str, transaction_id, description: str) ->
         return {}
 
     amount = Decimal(row["amount"] or 0)
-    median = Decimal(str(row["category_median"])) if row["category_median"] else None
+    median = Decimal(str(row["merchant_median"])) if row["merchant_median"] else None
     packet = {
         "merchant": description,
         "amount": str(amount),
@@ -145,13 +176,15 @@ async def _context_packet(user_handle: str, transaction_id, description: str) ->
         "first_time_here": row["merchant_this_month"] <= 1
         and row["merchant_first_seen"] is not None,
         "transactions_today": row["txns_today"],
+        "seen_here_last_month": row["merchant_prior_month"],
+        "same_amount_months": row["same_amount_months"],
         "spend_today": row["spend_today"],
         "_merchant_annotated_recently": row["merchant_annotated_recently"] > 0,
         "_day_total_already": row["day_total_already"] > 0,
     }
-    if median and median > 0 and row["category_sample"] >= MIN_SAMPLES_FOR_MEDIAN:
-        packet["category_typical"] = str(median.quantize(Decimal("0.01")))
-        packet["times_typical"] = float(round(amount / median, 1))
+    if median and median > 0 and row["merchant_sample"] >= MIN_SAMPLES_FOR_MEDIAN:
+        packet["usually_here"] = str(median.quantize(Decimal("0.01")))
+        packet["times_usual"] = float(round(amount / median, 1))
     return packet
 
 
@@ -165,10 +198,17 @@ def _worth_saying(packet: dict) -> list[str]:
     # single row and the column becomes wallpaper.
     if packet.get("_merchant_annotated_recently"):
         return []
-    if packet.get("times_this_month", 0) >= HABIT_REPEATS:
-        allowed.append("frequency")
+    # A charge that repeats at the SAME amount is a subscription the user may
+    # not have noticed they are still paying for. That is worth saying.
+    if packet.get("same_amount_months", 0) >= SUBSCRIPTION_MONTHS:
         allowed.append("recurrence")
-    ratio = packet.get("times_typical")
+    # A habit that formed THIS month is news. One that was already there is not.
+    if (
+        packet.get("times_this_month", 0) >= HABIT_REPEATS
+        and packet.get("seen_here_last_month", 0) == 0
+    ):
+        allowed.append("frequency")
+    ratio = packet.get("times_usual")
     if ratio is not None and (ratio >= OUTLIER_RATIO or ratio <= CHEAP_RATIO):
         allowed.append("outlier")
         allowed.append("price_change")
@@ -178,6 +218,28 @@ def _worth_saying(packet: dict) -> list[str]:
     ):
         allowed.append("day_total")
     return sorted(set(allowed))
+
+
+# Which packet fields each kind is allowed to draw on. Gating the KIND alone
+# was not enough: the model still had every number in front of it and kept
+# reaching for the dullest one — writing "Reached 31 Swiggy orders this month"
+# under a gate that had opened for a repeating charge. It cannot say what it
+# is not told, so the packet is narrowed to what the qualifying kind needs.
+KIND_FIELDS = {
+    "recurrence": ("same_amount_months",),
+    "price_change": ("usually_here", "times_usual"),
+    "outlier": ("usually_here", "times_usual"),
+    "frequency": ("times_this_month", "seen_here_last_month"),
+    "day_total": ("transactions_today", "spend_today"),
+}
+ALWAYS = ("merchant", "amount")
+
+
+def _narrow(packet: dict, allowed: list[str]) -> dict:
+    keep = set(ALWAYS)
+    for kind in allowed:
+        keep.update(KIND_FIELDS.get(kind, ()))
+    return {k: v for k, v in packet.items() if k in keep}
 
 
 async def _store_annotation(transaction_id, kind: str, text: str) -> None:
@@ -201,7 +263,7 @@ async def process_event(
     allowed = _worth_saying(context)
     payload = {
         "event": event_text,
-        "context": context or None,
+        "context": _narrow(context, allowed) or None,
         # An empty list means: this transaction is unremarkable, say nothing.
         "annotation_kinds_allowed": allowed,
     }
