@@ -54,5 +54,5 @@ async def export_csv(
     return StreamingResponse(
         iter([buf.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": 'attachment; filename="ledger-export.csv"'},
+        headers={"Content-Disposition": 'attachment; filename="knot-export.csv"'},
     )

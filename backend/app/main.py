@@ -25,7 +25,7 @@ async def lifespan(_: FastAPI):
     await close_pool()
 
 
-app = FastAPI(title="Ledger", lifespan=lifespan)
+app = FastAPI(title="Knot", lifespan=lifespan)
 app.middleware("http")(guard)
 app.add_middleware(
     CORSMiddleware,
