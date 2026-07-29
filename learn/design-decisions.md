@@ -38,3 +38,12 @@ Planned stores: **working** (session turns + running summary, a context-*budget*
 
 ### D11. Named parameterized query templates only — the LLM never writes SQL
 `query_ledger` exposes an allowlist of named templates (spend by category, weekend averages, recent txns). Rejected letting the model generate SQL: unbounded blast radius, injection surface, and judges explicitly score security posture.
+
+### D12. Non-streaming agent loop first; SSE later
+The MVP `/chat` returns complete JSON. Streaming with tool-call delta assembly is real work with real bugs; it lands with the frontend polish stage. The loop's contract (provider-neutral messages, tool registry) doesn't change when streaming arrives.
+
+### D13. Split rounding: the user absorbs the paise
+"12,000 three ways" gives others ₹4,000 each; when shares don't divide evenly (₹100/3), others owe the rounded share (₹33.33) and the user's own expense leg absorbs the remainder (₹33.34) so legs still sum to zero exactly. Never let rounding drift into someone else's debt.
+
+### D14. Cross-request history replays text only
+When a session continues, the agent re-reads prior turns as plain user/assistant text — tool-call internals are not replayed. Tool outcomes live in the ledger itself, which the agent re-queries; replaying stale tool results would be a second source of truth that can lie.
