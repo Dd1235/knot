@@ -10,6 +10,10 @@ from app.api.ledger import router as ledger_router
 from app.api.memory import router as memory_router
 from app.config import get_settings
 from app.db.pool import close_pool, open_pool, pool
+from app.obs.logging import configure_logging
+from app.obs.middleware import guard
+
+configure_logging()
 
 
 @asynccontextmanager
@@ -20,6 +24,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Ledger", lifespan=lifespan)
+app.middleware("http")(guard)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_origins.split(","),
