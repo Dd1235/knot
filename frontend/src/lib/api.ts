@@ -342,3 +342,8 @@ export const generateInsights = (days: number, refresh = false) =>
     `/insights/generate?days=${days}&refresh=${refresh}`,
     { method: "POST" },
   );
+
+/** Headers the Realtime client needs (it calls the API outside api()). */
+export function authHeadersForRealtime(): Record<string, string> {
+  return { "X-User": getUserHandle(), ...authHeaders() };
+}

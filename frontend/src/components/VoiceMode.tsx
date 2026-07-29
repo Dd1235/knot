@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { speak, stopSpeaking, useSpeechInput } from "@/lib/speech";
+import { RealtimeSession, type RealtimeState } from "@/lib/realtime";
+import { authHeadersForRealtime } from "@/lib/api";
 import Button from "@/components/ui/Button";
 import Logo from "@/components/ui/Logo";
 
@@ -24,6 +26,7 @@ export default function VoiceMode({
   const [state, setState] = useState<VoiceState>("listening");
   const [transcript, setTranscript] = useState("");
   const [reply, setReply] = useState("");
+  const [tool, setTool] = useState<string | null>(null);
   const closedRef = useRef(false);
   const silentRoundsRef = useRef(0);
   const interruptedRef = useRef(false);
@@ -74,10 +77,37 @@ export default function VoiceMode({
   });
   startRef.current = mic.start;
 
+  // Realtime (WebRTC) is the good path: real barge-in, sub-second turns.
+  // Web Speech remains the fallback when it can't start.
+  const realtimeRef = useRef<RealtimeSession | null>(null);
+  const [mode, setMode] = useState<"realtime" | "fallback">("realtime");
+
   useEffect(() => {
-    begin();
+    const session = new RealtimeSession({
+      onState: (s: RealtimeState) => {
+        if (closedRef.current) return;
+        setState(s === "connecting" ? "thinking" : (s as VoiceState));
+      },
+      onUserTranscript: (t) => setTranscript(t),
+      onAssistantTranscript: (t) => {
+        setTranscript("");
+        setReply(t);
+      },
+      onTool: (name) => setTool(name),
+      onError: (message) => setReply(message),
+    });
+    realtimeRef.current = session;
+
+    session.start(authHeadersForRealtime()).catch(() => {
+      if (closedRef.current) return;
+      realtimeRef.current = null;
+      setMode("fallback");
+      begin();
+    });
+
     return () => {
       closedRef.current = true;
+      session.stop();
       stopSpeaking();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -111,6 +141,10 @@ export default function VoiceMode({
   }, [onClose]);
 
   const tapCircle = () => {
+    if (realtimeRef.current) {
+      realtimeRef.current.interrupt();
+      return;
+    }
     if (state === "speaking") {
       interruptedRef.current = true;
       stopSpeaking();
@@ -162,8 +196,13 @@ export default function VoiceMode({
           />
         </button>
         <p aria-live="polite" className="text-sm text-ink-secondary">
-          {style.label}
+          {tool && state === "thinking" ? `${tool.replace(/_/g, " ")}…` : style.label}
         </p>
+        {mode === "fallback" && (
+          <p className="-mt-6 text-[11px] text-ink-muted">
+            using on-device speech — realtime voice unavailable
+          </p>
+        )}
 
         <div className="min-h-24 max-w-md space-y-3 text-center">
           {transcript && (
