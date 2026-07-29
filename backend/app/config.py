@@ -25,7 +25,9 @@ class Settings(BaseSettings):
     openai_embedding_model: str = "text-embedding-3-small"
 
     aws_region: str = "us-east-1"
-    bedrock_chat_model: str = "anthropic.claude-sonnet-4-5-v1:0"
+    # Nova Pro default (Claude needs the Anthropic use-case agreement first);
+    # switch via BEDROCK_CHAT_MODEL, e.g. us.anthropic.claude-sonnet-4-5-20250929-v1:0
+    bedrock_chat_model: str = "us.amazon.nova-pro-v1:0"
     bedrock_embedding_model: str = "amazon.titan-embed-text-v2:0"
 
     # Both text-embedding-3-small and Titan v2 support 512-dim output, so the
