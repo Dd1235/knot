@@ -16,7 +16,10 @@ class JsonFormatter(logging.Formatter):
         }
         if record.exc_info and record.exc_info[0]:
             entry["exc"] = self.formatException(record.exc_info)
-        for key in ("method", "path", "status", "duration_ms", "user", "session_id", "tool"):
+        for key in (
+            "method", "path", "status", "duration_ms", "user",
+            "session_id", "tool", "iteration", "assembly_ms", "llm_ms",
+        ):
             value = getattr(record, key, None)
             if value is not None:
                 entry[key] = value
