@@ -67,6 +67,56 @@ export const sendChat = (message: string, sessionId: string | null) =>
     body: JSON.stringify({ message, session_id: sessionId }),
   });
 
+export interface StreamCallbacks {
+  onDelta: (text: string) => void;
+  onTool: (tool: string) => void;
+  onDone: (done: ChatResponse) => void;
+}
+
+export async function sendChatStream(
+  message: string,
+  sessionId: string | null,
+  callbacks: StreamCallbacks,
+  retried = false
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/chat/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User": getUserHandle(),
+      ...authHeaders(),
+    },
+    body: JSON.stringify({ message, session_id: sessionId }),
+  });
+  if (res.status === 401 && !retried && typeof window !== "undefined") {
+    const passcode = window.prompt("Enter the Ledger passcode:");
+    if (passcode) {
+      localStorage.setItem("ledger:passcode", passcode);
+      return sendChatStream(message, sessionId, callbacks, true);
+    }
+  }
+  if (!res.ok || !res.body) throw new Error(`${res.status}: ${await res.text()}`);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+    for (const frame of frames) {
+      const line = frame.trim();
+      if (!line.startsWith("data: ")) continue;
+      const event = JSON.parse(line.slice(6));
+      if (event.type === "delta") callbacks.onDelta(event.text);
+      else if (event.type === "tool") callbacks.onTool(event.tool);
+      else if (event.type === "done") callbacks.onDone(event as ChatResponse);
+    }
+  }
+}
+
 export const getBalances = () =>
   api<{ people: PersonBalance[]; ledger_sum: string }>("/ledger/balances");
 

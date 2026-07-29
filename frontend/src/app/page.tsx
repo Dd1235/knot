@@ -3,13 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  ChatResponse,
   ContextTrace,
   PersonBalance,
   ToolEvent,
   getBalances,
   inr,
-  sendChat,
+  sendChatStream,
 } from "@/lib/api";
 import { speak, useSpeechInput } from "@/lib/speech";
 
@@ -18,6 +17,8 @@ interface Message {
   content: string;
   events?: ToolEvent[];
   trace?: ContextTrace;
+  liveTools?: string[];
+  streaming?: boolean;
 }
 
 const TOOL_BADGES: Record<string, string> = {
@@ -120,28 +121,53 @@ export default function ChatPage() {
       .then((b) => setPeople(b.people.filter((p) => Number(p.balance) !== 0)))
       .catch(() => {});
 
+  const patchLast = (update: (m: Message) => Message) =>
+    setMessages((all) => {
+      const copy = [...all];
+      copy[copy.length - 1] = update(copy[copy.length - 1]);
+      return copy;
+    });
+
   const send = useCallback(
     async (text: string, options?: { voice?: boolean }) => {
       const message = text.trim();
       if (!message || busy) return;
       setInput("");
       setBusy(true);
-      setMessages((m) => [...m, { role: "user", content: message }]);
+      setMessages((m) => [
+        ...m,
+        { role: "user", content: message },
+        { role: "assistant", content: "", streaming: true, liveTools: [] },
+      ]);
       try {
-        const res: ChatResponse = await sendChat(message, sessionId);
-        localStorage.setItem("ledger:session", res.session_id);
-        setSessionId(res.session_id);
-        setMessages((m) => [
-          ...m,
-          { role: "assistant", content: res.reply, events: res.events, trace: res.context_trace },
-        ]);
-        if (options?.voice) speak(res.reply);
-        refreshBalances();
+        await sendChatStream(message, sessionId, {
+          onDelta: (delta) =>
+            patchLast((m) => ({ ...m, content: m.content + delta })),
+          onTool: (tool) =>
+            // A tool round: discard optimistic text, show what's happening.
+            patchLast((m) => ({
+              ...m,
+              content: "",
+              liveTools: [...(m.liveTools ?? []), tool],
+            })),
+          onDone: (res) => {
+            localStorage.setItem("ledger:session", res.session_id);
+            setSessionId(res.session_id);
+            patchLast(() => ({
+              role: "assistant",
+              content: res.reply,
+              events: res.events,
+              trace: res.context_trace,
+            }));
+            if (options?.voice) speak(res.reply);
+            refreshBalances();
+          },
+        });
       } catch (err) {
-        setMessages((m) => [
-          ...m,
-          { role: "assistant", content: `Something went wrong: ${err}` },
-        ]);
+        patchLast(() => ({
+          role: "assistant",
+          content: `Something went wrong: ${err}`,
+        }));
       } finally {
         setBusy(false);
       }
@@ -239,19 +265,22 @@ export default function ChatPage() {
             <div key={i} className="flex justify-start">
               <div className="max-w-[85%]">
                 <div className="rounded-2xl rounded-bl-md bg-zinc-900 border border-zinc-800 px-3.5 py-2 text-sm whitespace-pre-wrap">
-                  {m.content}
+                  {m.content ||
+                    (m.streaming && (
+                      <span className="text-zinc-500 animate-pulse">
+                        {m.liveTools?.length
+                          ? `${TOOL_BADGES[m.liveTools[m.liveTools.length - 1]] ?? m.liveTools[m.liveTools.length - 1]}…`
+                          : "…"}
+                      </span>
+                    ))}
+                  {m.streaming && m.content && (
+                    <span className="animate-pulse text-emerald-500">▍</span>
+                  )}
                 </div>
                 <AssistantMeta message={m} />
               </div>
             </div>
           )
-        )}
-        {busy && (
-          <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-md bg-zinc-900 border border-zinc-800 px-3.5 py-2 text-sm text-zinc-500">
-              <span className="animate-pulse">thinking…</span>
-            </div>
-          </div>
         )}
         <div ref={bottomRef} />
       </main>
