@@ -232,7 +232,11 @@ export interface GroupSpend {
 export interface DailyFlow {
   date: string;
   spend: string;
+  /** Money into a SIP/FD/stocks. Kept out of `spend` on purpose — it changed
+   * shape, it did not leave. */
+  invested: string;
   income: string;
+  txns: number;
 }
 
 export interface NetWorth {
@@ -244,6 +248,7 @@ export interface NetWorth {
 export interface AnalyticsSummary {
   window_days: number;
   total_spend: string;
+  total_invested: string;
   total_income: string;
   net_cashflow: string;
   net_worth: NetWorth;
@@ -252,8 +257,59 @@ export interface AnalyticsSummary {
   daily: DailyFlow[];
 }
 
-export const getAnalytics = (days: number) =>
-  api<AnalyticsSummary>(`/analytics/summary?days=${days}`);
+export const getAnalytics = (days: number, offsetDays = 0) =>
+  api<AnalyticsSummary>(
+    `/analytics/summary?days=${days}&offset_days=${offsetDays}`,
+  );
+
+export interface MerchantFrequency {
+  merchant: string;
+  times: number;
+  amount: string;
+  grp: string;
+}
+
+export interface Rhythm {
+  window_days: number;
+  transactions: number;
+  active_days: number;
+  per_active_day: number;
+  no_spend_days: number;
+  top_merchants: MerchantFrequency[];
+  by_weekday: { dow: number; days_seen: number; typical: string }[];
+}
+
+export const getRhythm = (days: number) =>
+  api<Rhythm>(`/analytics/rhythm?days=${days}`);
+
+export interface DueItem {
+  name: string;
+  amount: string;
+  category: string;
+  due_on: string;
+  in_days: number;
+}
+
+export interface SafeToSpend {
+  liquid: string;
+  claimed: string;
+  available: string;
+  next_income: DueItem | null;
+  days_until_income: number | null;
+  per_day: string | null;
+  upcoming: DueItem[];
+}
+
+export const getSafeToSpend = () => api<SafeToSpend>("/analytics/safe-to-spend");
+
+export interface CashFloat {
+  withdrawn: string;
+  accounted: string;
+  unaccounted: string;
+  last_withdrawal: string | null;
+}
+
+export const getCashFloat = () => api<CashFloat>("/analytics/cash");
 
 export interface RecurringCommitment {
   id: string;
