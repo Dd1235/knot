@@ -20,6 +20,8 @@ SESSION_DAYS = 30
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 _hasher = PasswordHasher()
+# Fixed hash used to equalise timing on the unknown-email path.
+_DUMMY_HASH = _hasher.hash("timing-equalisation-placeholder")
 
 
 class AuthError(Exception):
@@ -89,7 +91,12 @@ async def login(email: str, password: str) -> dict:
         )
         row = await cur.fetchone()
         if row is None or not row[1]:
-            # Uniform error: never reveal whether an email is registered.
+            # Verify against a throwaway hash so an unregistered email costs the
+            # same time as a wrong password — otherwise login is an oracle.
+            try:
+                _hasher.verify(_DUMMY_HASH, password)
+            except VerifyMismatchError:
+                pass
             raise AuthError("email or password is incorrect")
         handle, password_hash = row
         try:
