@@ -76,6 +76,21 @@ async def settle(body: SettleIn, x_user: str = Header(default="demo")) -> dict:
     return _txn_response(posted)
 
 
+class VoidIn(BaseModel):
+    reason: str = ""
+
+
+@router.post("/transactions/{transaction_id}/void", status_code=201)
+async def void_transaction(
+    transaction_id: str, body: VoidIn, x_user: str = Header(default="demo")
+) -> dict:
+    try:
+        posted = await service.void_transaction(x_user, transaction_id, body.reason)
+    except service.LedgerError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _txn_response(posted)
+
+
 @router.get("/balances")
 async def balances(x_user: str = Header(default="demo")) -> dict:
     return {

@@ -18,6 +18,7 @@ from uuid import UUID
 
 from psycopg import AsyncConnection
 from psycopg.rows import dict_row
+from psycopg.types.json import Json
 
 from app.db.pool import pool
 from app.db.tx import run_serializable
@@ -292,6 +293,63 @@ async def settle_up(
     return await run_serializable(_fn)
 
 
+async def void_transaction(
+    user_handle: str, transaction_id: str | UUID, reason: str = ""
+) -> PostedTransaction:
+    """Reverse a transaction with a negating entry. Nothing is ever deleted —
+    the original and its reversal both stay on the books (audit trail)."""
+
+    async def _fn(conn: AsyncConnection) -> PostedTransaction:
+        user_id = await ensure_user(conn, user_handle)
+        cur = await conn.execute(
+            "SELECT description, category FROM transactions WHERE id = %s AND user_id = %s",
+            (transaction_id, user_id),
+        )
+        row = await cur.fetchone()
+        if row is None:
+            raise LedgerError("transaction not found")
+        description, category = row
+        if category == "reversal":
+            raise LedgerError("cannot void a reversal entry")
+        cur = await conn.execute(
+            "SELECT 1 FROM transactions WHERE user_id = %s AND metadata->>'voids' = %s",
+            (user_id, str(transaction_id)),
+        )
+        if await cur.fetchone():
+            raise LedgerError("transaction is already voided")
+
+        cur = await conn.execute(
+            """
+            INSERT INTO transactions (user_id, description, source, category, metadata)
+            VALUES (%s, %s, 'system', 'reversal', %s)
+            RETURNING id
+            """,
+            (
+                user_id,
+                f"Void: {description}" + (f" — {reason}" if reason else ""),
+                Json({"voids": str(transaction_id)}),
+            ),
+        )
+        reversal_id = (await cur.fetchone())[0]
+        await conn.execute(
+            """
+            INSERT INTO transaction_legs (transaction_id, account_id, amount, memo)
+            SELECT %s, account_id, -amount, 'reversal'
+            FROM transaction_legs WHERE transaction_id = %s
+            """,
+            (reversal_id, transaction_id),
+        )
+        cur = await conn.execute(
+            "SELECT COALESCE(SUM(amount), 0) FROM transaction_legs WHERE transaction_id = %s",
+            (reversal_id,),
+        )
+        if (await cur.fetchone())[0] != 0:
+            raise UnbalancedTransaction("reversal legs do not sum to zero; rolling back")
+        return await _load_transaction(conn, reversal_id)
+
+    return await run_serializable(_fn)
+
+
 async def account_balances(user_handle: str) -> list[dict]:
     async with pool().connection() as conn:
         cur = await conn.execute(
@@ -330,7 +388,13 @@ async def recent_transactions(user_handle: str, limit: int = 20) -> list[dict]:
     async with pool().connection() as conn:
         cur = await conn.execute(
             """
-            SELECT t.id::STRING, t.occurred_at, t.description, t.category, t.source::STRING
+            SELECT t.id::STRING, t.occurred_at, t.description, t.category, t.source::STRING,
+                   (SELECT COALESCE(SUM(l.amount) FILTER (WHERE l.amount > 0), 0)
+                    FROM transaction_legs AS l
+                    WHERE l.transaction_id = t.id)::STRING AS amount,
+                   EXISTS(SELECT 1 FROM transactions AS v
+                          WHERE v.user_id = t.user_id
+                            AND v.metadata->>'voids' = t.id::STRING) AS voided
             FROM transactions AS t
             JOIN users AS u ON u.id = t.user_id
             WHERE u.handle = %s
