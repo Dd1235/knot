@@ -56,14 +56,25 @@ class OpenAIProvider:
         self._client = AsyncOpenAI(api_key=settings.openai_api_key)
         self._model = settings.openai_chat_model
 
+    def _kwargs(self, system: str, messages: list[dict], tools: list[dict]) -> dict:
+        kwargs: dict = {
+            "model": self._model,
+            "messages": _to_openai_messages(system, messages),
+        }
+        if tools:
+            kwargs["tools"] = _to_openai_tools(tools)
+        if self._model.startswith(("gpt-5", "o")):
+            # Reasoning models: fixed temperature; keep latency low.
+            kwargs["reasoning_effort"] = "low"
+        else:
+            kwargs["temperature"] = 0.2
+        return kwargs
+
     async def chat(
         self, system: str, messages: list[dict], tools: list[dict]
     ) -> ChatResponse:
         completion = await self._client.chat.completions.create(
-            model=self._model,
-            messages=_to_openai_messages(system, messages),
-            tools=_to_openai_tools(tools) if tools else None,
-            temperature=0.2,
+            **self._kwargs(system, messages, tools)
         )
         choice = completion.choices[0].message
         tool_calls = [
@@ -78,11 +89,7 @@ class OpenAIProvider:
 
     async def chat_stream(self, system: str, messages: list[dict], tools: list[dict]):
         stream = await self._client.chat.completions.create(
-            model=self._model,
-            messages=_to_openai_messages(system, messages),
-            tools=_to_openai_tools(tools) if tools else None,
-            temperature=0.2,
-            stream=True,
+            **self._kwargs(system, messages, tools), stream=True
         )
         text_parts: list[str] = []
         partial_calls: dict[int, dict] = {}

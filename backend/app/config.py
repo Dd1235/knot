@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     embedding_provider: str = "openai"
 
     openai_api_key: str = ""
-    openai_chat_model: str = "gpt-4.1-mini"
+    openai_chat_model: str = "gpt-5-mini"
     openai_embedding_model: str = "text-embedding-3-small"
 
     aws_region: str = "us-east-1"
