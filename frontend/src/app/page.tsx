@@ -10,7 +10,7 @@ import {
   inr,
   sendChatStream,
 } from "@/lib/api";
-import { speak, useSpeechInput } from "@/lib/speech";
+import { speak, unlockSpeech, useSpeechInput } from "@/lib/speech";
 import VoiceMode from "@/components/VoiceMode";
 
 interface Message {
@@ -204,7 +204,10 @@ export default function ChatPage() {
           <div className="flex items-center gap-2">
             {mic.supported && (
               <button
-                onClick={() => setVoiceOpen(true)}
+                onClick={() => {
+                  unlockSpeech();
+                  setVoiceOpen(true);
+                }}
                 className="rounded-lg border border-sky-900 bg-sky-950/50 px-2.5 py-1.5 text-xs text-sky-400 active:bg-sky-950"
               >
                 🎧 voice
@@ -222,6 +225,12 @@ export default function ChatPage() {
               className="rounded-lg border border-emerald-900 bg-emerald-950/50 px-2.5 py-1.5 text-xs text-emerald-400 active:bg-emerald-950"
             >
               🧠 memory
+            </Link>
+            <Link
+              href="/transactions"
+              className="rounded-lg border border-zinc-800 px-2.5 py-1.5 text-xs text-zinc-400 active:bg-zinc-900"
+            >
+              📒
             </Link>
             <Link
               href="/demo"
