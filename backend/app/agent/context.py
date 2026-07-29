@@ -5,10 +5,15 @@ injected item is recorded in a trace that is persisted with the turn — the
 Memory Inspector's "why did the agent say this?" view reads that trace.
 """
 
+import asyncio
 from dataclasses import dataclass, field
 
 from app.llm.embeddings import embed_one
 from app.memory import episodic, procedural, semantic
+
+
+async def _empty_list() -> list[dict]:
+    return []
 
 FACT_SCORE_FLOOR = 0.12
 QUESTION_HINTS = ("did ", "when ", "how much", "what ", "who ", "do i", "have i", "?")
@@ -24,15 +29,15 @@ class AssembledContext:
 async def assemble(user_handle: str, user_message: str) -> AssembledContext:
     query_vector = await embed_one(user_message)
 
-    rules = await procedural.match(user_handle, query_vector, k=3)
-    facts = [
-        f
-        for f in await semantic.search(user_handle, query_vector, k=5)
-        if f["score"] >= FACT_SCORE_FLOOR
-    ]
-    episodes = []
-    if any(hint in user_message.lower() for hint in QUESTION_HINTS):
-        episodes = await episodic.search(user_handle, query_vector, k=3)
+    is_question = any(hint in user_message.lower() for hint in QUESTION_HINTS)
+    rules, all_facts, episodes = await asyncio.gather(
+        procedural.match(user_handle, query_vector, k=3),
+        semantic.search(user_handle, query_vector, k=5),
+        episodic.search(user_handle, query_vector, k=3)
+        if is_question
+        else _empty_list(),
+    )
+    facts = [f for f in all_facts if f["score"] >= FACT_SCORE_FLOOR]
 
     sections: list[str] = []
     if rules:
