@@ -111,7 +111,8 @@ async def test_recurring_post_due_is_idempotent(user):
 
     txns = await service.recent_transactions(user)
     assert len(txns) == 1
-    assert txns[0]["description"] == "Netflix (auto)"
+    # The period is in the description so back-filled entries are distinguishable.
+    assert txns[0]["description"].startswith("Netflix (auto")
     assert txns[0]["category"] == "subscriptions"
     assert txns[0]["source"] == "system"
     assert await service.ledger_sum(user) == 0
@@ -287,3 +288,37 @@ async def test_naive_occurred_at_is_treated_as_local_time(user):
     parsed = _parse_occurred_at("2026-07-29T21:30:00")
     assert parsed is not None and parsed.tzinfo is not None
     assert parsed.utcoffset().total_seconds() == 5.5 * 3600
+
+
+def test_recurring_backfills_missed_periods():
+    """A user who doesn't open the app for months must not lose those postings."""
+    from datetime import date, datetime
+
+    from app.ledger.recurring import _periods_due
+
+    created = datetime(2026, 1, 10, tzinfo=IST)
+    # Last posted in May, now July -> June and July are both owed.
+    assert _periods_due("monthly", 1, created, date(2026, 7, 15), "2026-05") == [
+        "2026-06",
+        "2026-07",
+    ]
+    # Already current: nothing owed.
+    assert _periods_due("monthly", 1, created, date(2026, 7, 15), "2026-07") == []
+    # Year rollover.
+    assert _periods_due("monthly", 1, created, date(2026, 2, 5), "2025-12") == [
+        "2026-01",
+        "2026-02",
+    ]
+    # A long-dormant account is capped rather than posting dozens at once.
+    assert len(_periods_due("monthly", 1, created, date(2026, 7, 15), "2020-01")) == 12
+    # First run only posts the current period, not all of history.
+    assert _periods_due("monthly", 1, created, date(2026, 7, 15), "") == ["2026-07"]
+
+
+def test_backfilled_entries_are_dated_to_their_own_period():
+    """Otherwise a catch-up would dump months of spend onto today's chart."""
+    from app.ledger.recurring import _period_start
+
+    assert _period_start("monthly", "2026-06", 1).date().isoformat() == "2026-06-01"
+    # Due-day clamps to short months.
+    assert _period_start("monthly", "2026-02", 31).date().isoformat() == "2026-02-28"

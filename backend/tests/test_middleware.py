@@ -29,3 +29,28 @@ def test_exhausting_one_endpoint_does_not_lock_the_others(monkeypatch):
 def test_expensive_get_endpoints_are_metered():
     assert "/analytics/export.csv" in middleware.METERED_PATHS
     assert "/insights/generate" in middleware.METERED_PATHS
+
+
+async def test_cross_origin_state_change_is_blocked():
+    """SameSite=None is required for a cross-origin frontend, so the Origin
+    check is what stops a forged POST from another site."""
+    import httpx
+
+    from app.db.pool import open_pool
+    from app.main import app
+
+    # open_pool() is idempotent; the pool is shared, so this must NOT close it.
+    await open_pool()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        forged = await client.post(
+            "/insights/generate",
+            headers={"Origin": "https://evil.example", "X-User": "victim"},
+        )
+        assert forged.status_code == 403
+
+        same_site = await client.post(
+            "/insights/generate",
+            headers={"Origin": "http://localhost:3100", "X-User": "csrf-probe"},
+        )
+        assert same_site.status_code != 403
