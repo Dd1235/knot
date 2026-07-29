@@ -10,6 +10,8 @@ dependencies = [
     "pydantic-settings>=2.4",
     "openai>=2.50.0",
     "boto3>=1.43.58",
+    "argon2-cffi>=25.1.0",
+    "pyjwt>=2.13.0",
 ]
 
 [dependency-groups]
