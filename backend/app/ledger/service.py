@@ -150,7 +150,8 @@ async def _post_in_conn(
 
     if idempotency_key:
         cur = await conn.execute(
-            "SELECT transaction_id FROM idempotency_keys WHERE key = %s", (idempotency_key,)
+            "SELECT transaction_id FROM idempotency_keys WHERE key = %s AND user_id = %s",
+            (idempotency_key, user_id),
         )
         row = await cur.fetchone()
         if row:
@@ -277,6 +278,8 @@ async def settle_up(
         settle_amount = (
             outstanding if amount is None else Decimal(amount).quantize(TWO_PLACES)
         )
+        if settle_amount <= 0:
+            raise LedgerError("settlement amount must be positive")
         if settle_amount > outstanding:
             raise OverSettlement(
                 f"settlement of {settle_amount} exceeds outstanding {outstanding}"
@@ -307,14 +310,17 @@ async def void_transaction(
     async def _fn(conn: AsyncConnection) -> PostedTransaction:
         user_id = await ensure_user(conn, user_handle)
         cur = await conn.execute(
-            "SELECT description, category FROM transactions WHERE id = %s AND user_id = %s",
+            """
+            SELECT description, category, occurred_at, metadata->>'voids'
+            FROM transactions WHERE id = %s AND user_id = %s
+            """,
             (transaction_id, user_id),
         )
         row = await cur.fetchone()
         if row is None:
             raise LedgerError("transaction not found")
-        description, category = row
-        if category == "reversal":
+        description, category, occurred_at, voids_ref = row
+        if voids_ref is not None:
             raise LedgerError("cannot void a reversal entry")
         cur = await conn.execute(
             "SELECT 1 FROM transactions WHERE user_id = %s AND metadata->>'voids' = %s",
@@ -325,13 +331,19 @@ async def void_transaction(
 
         cur = await conn.execute(
             """
-            INSERT INTO transactions (user_id, description, source, category, metadata)
-            VALUES (%s, %s, 'system', 'reversal', %s)
+            INSERT INTO transactions
+                (user_id, description, source, category, occurred_at, metadata)
+            VALUES (%s, %s, 'system', %s, %s, %s)
             RETURNING id
             """,
             (
                 user_id,
                 f"Void: {description}" + (f" — {reason}" if reason else ""),
+                # Same category and timestamp as the original: a reversal filed
+                # under 'reversal' today would leave the original's category
+                # uncancelled and put negative spend in the current window.
+                category,
+                occurred_at,
                 Json({"voids": str(transaction_id)}),
             ),
         )

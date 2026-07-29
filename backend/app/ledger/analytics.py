@@ -120,11 +120,13 @@ async def summary(user_handle: str, days: int, offset_days: int = 0) -> dict:
     by_category = [
         {"category": r["category"], "grp": r["grp"], "amount": _money(r["amount"])}
         for r in cat_rows
+        if r["amount"] != 0
     ]
 
     group_totals: dict[str, Decimal] = {}
     for r in cat_rows:
         group_totals[r["grp"]] = group_totals.get(r["grp"], Decimal("0")) + r["amount"]
+    group_totals = {grp: total for grp, total in group_totals.items() if total != 0}
     by_group = [
         {
             "grp": grp,
