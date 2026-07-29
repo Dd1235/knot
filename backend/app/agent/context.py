@@ -40,14 +40,22 @@ async def assemble(user_handle: str, user_message: str) -> AssembledContext:
     facts = [f for f in all_facts if f["score"] >= FACT_SCORE_FLOOR]
 
     sections: list[str] = []
+    # Memory content originates in user-supplied text (a pasted SMS, a
+    # forwarded receipt), so it is DATA, never instructions. Strip anything
+    # that could close the fence early and let injected text escape.
+    def safe(text: str) -> str:
+        return str(text).replace("</user_memory>", "").replace("<user_memory>", "")
+
     if rules:
-        lines = "\n".join(f"- {r['rule']['instruction']}" for r in rules)
+        lines = "\n".join(f"- {safe(r['rule']['instruction'])}" for r in rules)
         sections.append(f"## Standing rules the user taught you — apply them\n{lines}")
     if facts:
-        lines = "\n".join(f"- [{f['kind']}] {f['fact']}" for f in facts)
+        lines = "\n".join(f"- [{safe(f['kind'])}] {safe(f['fact'])}" for f in facts)
         sections.append(f"## Things you remember about this user\n{lines}")
     if episodes:
-        lines = "\n".join(f"- [{e['occurred_at'][:10]}] {e['summary']}" for e in episodes)
+        lines = "\n".join(
+            f"- [{e['occurred_at'][:10]}] {safe(e['summary'])}" for e in episodes
+        )
         sections.append(f"## Possibly relevant past events\n{lines}")
 
     return AssembledContext(
