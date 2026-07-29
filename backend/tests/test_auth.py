@@ -89,3 +89,28 @@ async def test_auth_required_ignores_x_user_header(creds, monkeypatch):
         authed = await client.get("/auth/me", headers={"X-User": victim})
         assert authed.status_code == 200
         assert authed.json()["handle"] == account["handle"]
+
+
+async def test_login_timing_does_not_reveal_registration(creds):
+    """The unknown-email path must cost the same as a wrong password, or login
+    is an account-enumeration oracle."""
+    import time as _time
+
+    email, password = creds
+    await service.signup(email, password)
+
+    async def timed(target_email: str) -> float:
+        start = _time.perf_counter()
+        try:
+            await service.login(target_email, "definitely not the password")
+        except AuthError:
+            pass
+        return _time.perf_counter() - start
+
+    registered_runs = [await timed(email) for _ in range(3)]
+    unknown_runs = [
+        await timed(f"nobody-{uuid.uuid4().hex[:8]}@example.com") for _ in range(3)
+    ]
+    registered, unknown = min(registered_runs), min(unknown_runs)
+    # Argon2 dominates both paths; allow generous slack for DB round trips.
+    assert abs(registered - unknown) < registered * 0.7
