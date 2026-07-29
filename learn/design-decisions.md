@@ -56,3 +56,6 @@ Models write unreliable trigger phrases (declarative restatements, single words)
 
 ### D17. gpt-4.1-mini as the dev-mode default
 gpt-4o-mini recorded the taught rent split in only 1 of 3 identical runs (and once claimed "Done!" without calling any tool — countered by an explicit "never say recorded unless a tool succeeded this turn" prompt rule). gpt-4.1-mini: 3 of 3 with the rule injected each time. ~4x the price of 4o-mini, still pennies; Bedrock Claude remains the judged-demo model.
+
+### D18. Embedding provider is pinned per environment, never switched mid-flight
+OpenAI and Titan embeddings share our 512-dim column shape but live in different vector spaces — a query embedded by one is meaningless against vectors stored by the other. So `EMBEDDING_PROVIDER` is an environment-lifetime choice: dev runs OpenAI; the judged deployment starts fresh on Bedrock Titan and seeds its own demo data. If a mid-life switch is ever needed, every stored embedding must be re-embedded.
