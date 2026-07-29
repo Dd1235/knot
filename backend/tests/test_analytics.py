@@ -15,7 +15,6 @@ import pytest
 from app.agent.registry import ToolContext
 from app.agent.tools import money_tools
 from app.api.analytics import defuse_formula
-from app.config import get_settings
 from app.db.pool import close_pool, open_pool
 from app.ledger import analytics, recurring, service
 from app.ledger.service import LegSpec
@@ -155,10 +154,8 @@ async def test_csv_export_escapes_formula_cells(user):
 
     await spend(user, "55", "food", "=SUM(A1) totally normal chai")
 
+    # auth_required is off in dev/test, so the X-User header identifies the caller.
     headers = {"X-User": user}
-    passcode = get_settings().app_passcode
-    if passcode:
-        headers["Authorization"] = f"Bearer {passcode}"
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/analytics/export.csv", params={"days": 7}, headers=headers)
