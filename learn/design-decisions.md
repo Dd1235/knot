@@ -71,3 +71,55 @@ Tested 2026-07-29 with valid root credentials: **every Bedrock generative model 
 
 ### D21. Spending groups live in a seeded table, not code
 The professional needs/wants/savings split (essentials / discretionary / savings_invest / income) is a `category_groups` table seeded by migration, LEFT-JOINed in analytics SQL with COALESCE to 'other'. In-table (not a Python dict) so dashboards are pure SQL, unmapped categories degrade gracefully, and per-user overrides are one column away. Charts use fixed group colors (validated dark palette: blue/orange/aqua/yellow) — color follows the entity, never the rank.
+
+### D23. Investing is not spending, so it is not an expense account
+A SIP posted to `expense:sip` was wrong twice over, and the two errors compounded: net worth fell by ₹10,000 every time the user moved ₹10,000 into a fund, and every "you spent" total was inflated by their savings. An app that renders saving as a loss teaches the opposite of what it exists to teach.
+
+Investment categories now route to an `invest:` account, which falls through `_account_type` to `asset` — money that changed shape, not money that left. Net worth stays flat, spend totals exclude it, `total_invested` is reported alongside, and `safe_to_spend` excludes it too, because mutual fund units do not buy chai. The taxonomy also gained `nps`, `ppf`, `elss`, `rd`, `gold`, `crypto` and `bonds`, which previously fell into `other` and were counted as discretionary spending.
+
+The Python `INVESTMENT_CATEGORIES` set and the `savings_invest` rows in migration 0004/0008 are two sources of truth, so a test asserts they are equal. Drift is now a test failure rather than a silent mis-categorisation.
+
+### D24. The heatmap ranks days, and refuses to shade a day you saved
+Six months of spending as a GitHub-style calendar grid. Three choices carry it:
+
+**Intensity is a rank, not a ratio.** Scaling linearly against the maximum lets one rent day flatten a year to step 1. Cells bucket by quartile over *spending days only*, so the ramp always uses its full range and a heavy day reads heavy relative to how this person normally lives rather than relative to their worst day ever.
+
+**Investing never darkens a cell** — it gets a quiet ring instead. The grid cannot scold someone for saving.
+
+**A no-spend day is an absence, not a zero.** Surface colour plus a hairline, with the streak counter doing the celebrating; tinting it green would collide with income.
+
+The ramp is a single hue stepped evenly in OKLCH (H 45), computed rather than eyeballed, and every adjacent pair was checked in OKLab before shipping. The first attempt put step 1 only 6.3 from the empty-day colour — a day with real spending on it looked like a day with none.
+
+### D25. The warm end of the palette had three collisions, all measured
+Adding a sequential ramp exposed conflicts that were invisible while the palette was purely categorical:
+
+- The heatmap's hot step sat at hue 45; the `discretionary` group colour at hue 40. The same colour meant two different things on one page. Discretionary moved to violet; warm now belongs to the sequential ramp alone.
+- `chart-3` (savings) and `positive` (income) were **4.9 apart in OKLab** — indistinguishable in dark mode while claiming to differ. They now share the positive green and say the one thing they have in common: money that stayed yours.
+- Spend stopped wearing brand gold. The daily bars and the heatmap encode the same measure, so they take the same hue, and gold went back to being chrome that never encodes data — which is what the plan had called for.
+
+The lesson worth keeping: a palette is only "validated" against the charts that existed when you validated it.
+
+### D26. Annotate what changed, not what merely is
+The per-transaction annotations passed their gate on a seeded day at 21% and then embarrassed themselves against six months of realistic data: "29 visits this month", on nine merchants at once. Every one true. Every one worthless — the user knows where they eat.
+
+Two rounds of threshold tuning did not fix it, because the problem was never *how often* a habit fires. An established habit is not news to the person living it. So a settled habit earns nothing; what earns a word is a habit that just **formed**, a charge repeating at the same amount **across months**, a price that **moved**, or a day that got away.
+
+Two correctness bugs surfaced from reading the output rather than the code. Counting same-amount charges alone called a ₹38 bus fare a subscription, because it is the same ₹38 every morning — subscriptions repeat across *months*. And prices were compared to the *category* median, so an ₹859 bakery run read as "higher than typical shopping (₹286)"; a bakery is not every shop the user has ever visited. Baselines are now per-merchant.
+
+**The fix that mattered most: gating the kind was never enough.** The model still had every number in front of it and reached past the gate for the dullest one, writing "Reached 31 Swiggy orders" under a gate that had opened for a repeating charge. The context packet is now narrowed to the fields the qualifying kind needs. A model cannot say what it is not told — the same principle as "SQL computes, the model phrases", applied one level deeper.
+
+Honest status: on synthetic data the rate sits at ~41% rather than the 15–25% target, inflated by a seed that introduces seventeen brand-new merchants at once, which reads as an extraordinary month. Every surviving note is about a change. Further tuning against fabricated data would be overfitting.
+
+### D27. Identity on a transaction row is a glyph, not a hue
+The coloured spine was replaced by a category glyph. Shape survives greyscale, colour blindness and forced-colours mode, and stays legible at the twelfth category, where hue #12 of a categorical ramp does not. The group tint stays behind the glyph at 16% so it never competes with the amount.
+
+Rows under ₹100 render lighter and tighter. 76% of UPI payments land there; if the chai shouts as loudly as the rent, nothing reads.
+
+Two things were removed for the same reason: a `voice` badge on every row (speech is how this app is meant to be used, so badging all of them marks none of them) and a `raw_input` echo that repeated the row back — "saloon 375" beside a row already saying saloon and ₹375 — then truncated mid-word.
+
+### D28. One dashboard on a laptop, one column on a phone
+The insights page was a single `max-w-lg` column that wasted roughly two thirds of a laptop screen. Desktop now gets an 8/4 grid with everything *actionable* held in a sticky right rail: safe-to-spend, what I notice, what is due, who owes you, cash to reconcile. The phone keeps a single stack ordered so the two things you can act on today come first.
+
+This also fixed the bug that made the AI card useless: it was nested inside the `loading` branch, so it unmounted the moment the analytics request resolved. It has its own fetch and its own lifecycle, so it now lives outside both.
+
+Net worth dropped from a hero tile to one quiet row. It barely moves and it changes no decision.
