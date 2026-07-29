@@ -11,6 +11,7 @@ import {
   inr,
   sendChat,
 } from "@/lib/api";
+import { speak, useSpeechInput } from "@/lib/speech";
 
 interface Message {
   role: "user" | "assistant";
@@ -120,7 +121,7 @@ export default function ChatPage() {
       .catch(() => {});
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, options?: { voice?: boolean }) => {
       const message = text.trim();
       if (!message || busy) return;
       setInput("");
@@ -134,6 +135,7 @@ export default function ChatPage() {
           ...m,
           { role: "assistant", content: res.reply, events: res.events, trace: res.context_trace },
         ]);
+        if (options?.voice) speak(res.reply);
         refreshBalances();
       } catch (err) {
         setMessages((m) => [
@@ -146,6 +148,11 @@ export default function ChatPage() {
     },
     [busy, sessionId]
   );
+
+  const mic = useSpeechInput({
+    onInterim: setInput,
+    onFinal: (text) => send(text, { voice: true }),
+  });
 
   const newSession = () => {
     localStorage.removeItem("ledger:session");
@@ -260,9 +267,23 @@ export default function ChatPage() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="lent Priya 500 for lunch…"
+            placeholder={mic.listening ? "listening…" : "lent Priya 500 for lunch…"}
             className="flex-1 rounded-full border border-zinc-800 bg-zinc-900 px-4 py-2.5 text-sm outline-none placeholder:text-zinc-600 focus:border-emerald-800"
           />
+          {mic.supported && (
+            <button
+              type="button"
+              onClick={mic.listening ? mic.stop : mic.start}
+              title={mic.listening ? "Stop listening" : "Speak"}
+              className={`rounded-full px-3.5 py-2.5 text-sm border ${
+                mic.listening
+                  ? "border-rose-700 bg-rose-950/60 text-rose-400 animate-pulse"
+                  : "border-zinc-800 bg-zinc-900 text-zinc-300 active:bg-zinc-800"
+              }`}
+            >
+              {mic.listening ? "■" : "🎙"}
+            </button>
+          )}
           <button
             type="submit"
             disabled={busy || !input.trim()}
