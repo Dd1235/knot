@@ -49,17 +49,25 @@ async def summary(user_handle: str, days: int, offset_days: int = 0) -> dict:
         cur = await conn.execute(
             """
             SELECT
-                COALESCE(SUM(l.amount) FILTER (WHERE a.type = 'expense'), 0) AS spend,
+                COALESCE(SUM(l.amount) FILTER (
+                    WHERE a.type = 'expense'
+                      AND COALESCE(cg.grp, 'other') != 'savings_invest'), 0) AS spend,
+                COALESCE(SUM(l.amount) FILTER (
+                    WHERE l.amount > 0
+                      AND (a.name LIKE 'invest:%%'
+                           OR (a.type = 'expense'
+                               AND COALESCE(cg.grp, 'other') = 'savings_invest'))), 0) AS invested,
                 COALESCE(SUM(-l.amount) FILTER (WHERE a.type = 'income'), 0) AS income
             FROM transaction_legs AS l
             JOIN accounts AS a ON a.id = l.account_id
             JOIN transactions AS t ON t.id = l.transaction_id
             JOIN users AS u ON u.id = t.user_id
+            LEFT JOIN category_groups AS cg ON cg.category = t.category
             WHERE u.handle = %s AND t.occurred_at >= %s AND t.occurred_at < %s
             """,
             (user_handle, start, end),
         )
-        total_spend, total_income = await cur.fetchone()
+        total_spend, total_invested, total_income = await cur.fetchone()
 
         cur = await conn.execute(
             """
@@ -70,6 +78,7 @@ async def summary(user_handle: str, days: int, offset_days: int = 0) -> dict:
             JOIN users AS u ON u.id = t.user_id
             LEFT JOIN category_groups AS cg ON cg.category = t.category
             WHERE u.handle = %s AND t.occurred_at >= %s AND t.occurred_at < %s
+              AND COALESCE(cg.grp, 'other') != 'savings_invest'
             GROUP BY t.category, cg.grp
             ORDER BY amount DESC, t.category
             """,
@@ -81,12 +90,22 @@ async def summary(user_handle: str, days: int, offset_days: int = 0) -> dict:
         cur = await conn.execute(
             """
             SELECT ((t.occurred_at AT TIME ZONE 'Asia/Kolkata')::DATE)::STRING AS day,
-                   COALESCE(SUM(l.amount) FILTER (WHERE a.type = 'expense'), 0) AS spend,
-                   COALESCE(SUM(-l.amount) FILTER (WHERE a.type = 'income'), 0) AS income
+                   COALESCE(SUM(l.amount) FILTER (
+                       WHERE a.type = 'expense'
+                         AND COALESCE(cg.grp, 'other') != 'savings_invest'), 0) AS spend,
+                   COALESCE(SUM(l.amount) FILTER (
+                       WHERE l.amount > 0
+                         AND (a.name LIKE 'invest:%%'
+                              OR (a.type = 'expense'
+                                  AND COALESCE(cg.grp, 'other') = 'savings_invest'))
+                   ), 0) AS invested,
+                   COALESCE(SUM(-l.amount) FILTER (WHERE a.type = 'income'), 0) AS income,
+                   count(DISTINCT t.id) AS txns
             FROM transaction_legs AS l
             JOIN accounts AS a ON a.id = l.account_id
             JOIN transactions AS t ON t.id = l.transaction_id
             JOIN users AS u ON u.id = t.user_id
+            LEFT JOIN category_groups AS cg ON cg.category = t.category
             WHERE u.handle = %s AND t.occurred_at >= %s AND t.occurred_at < %s
             GROUP BY day
             """,
@@ -146,15 +165,20 @@ async def summary(user_handle: str, days: int, offset_days: int = 0) -> dict:
             {
                 "date": key,
                 "spend": _money(row["spend"]) if row else "0.00",
+                "invested": _money(row["invested"]) if row else "0.00",
                 "income": _money(row["income"]) if row else "0.00",
+                "txns": row["txns"] if row else 0,
             }
         )
 
     return {
         "window_days": days,
         "total_spend": _money(total_spend),
+        # Reported separately, never folded into spend: putting money into a
+        # SIP or FD is saving, and a dashboard that calls it spending is lying.
+        "total_invested": _money(total_invested),
         "total_income": _money(total_income),
-        "net_cashflow": _money(total_income - total_spend),
+        "net_cashflow": _money(total_income - total_spend - total_invested),
         "net_worth": {
             "assets": _money(assets),
             "liabilities": _money(liabilities),
@@ -378,6 +402,7 @@ async def safe_to_spend(user_handle: str) -> dict:
             JOIN accounts AS a ON a.id = l.account_id
             JOIN users AS u ON u.id = a.user_id
             WHERE u.handle = %s AND a.type = 'asset'
+              AND a.name NOT LIKE 'invest:%%'
             """,
             (user_handle,),
         )
