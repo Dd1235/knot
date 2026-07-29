@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 from psycopg.rows import dict_row
 
 from app.db.pool import pool
+from app.ledger.service import DIRECTION_CASE
 
 IST = ZoneInfo("Asia/Kolkata")
 TWO_PLACES = Decimal("0.01")
@@ -195,7 +196,7 @@ async def export_rows(user_handle: str, days: int) -> list[dict]:
     start, end, _ = _window_bounds(days, 0)
     async with pool().connection() as conn:
         cur = await conn.execute(
-            """
+            f"""
             SELECT ((t.occurred_at AT TIME ZONE 'Asia/Kolkata')::DATE)::STRING AS txn_date,
                    t.description,
                    t.category,
@@ -203,14 +204,7 @@ async def export_rows(user_handle: str, days: int) -> list[dict]:
                    (SELECT COALESCE(SUM(l.amount) FILTER (WHERE l.amount > 0), 0)
                     FROM transaction_legs AS l
                     WHERE l.transaction_id = t.id)::STRING AS amount,
-                   CASE
-                       WHEN t.category = 'reversal' THEN 'reversal'
-                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
-                                    JOIN accounts AS a ON a.id = l.account_id
-                                    WHERE l.transaction_id = t.id AND a.type = 'income')
-                           THEN 'received'
-                       ELSE 'spent'
-                   END AS direction,
+                   {DIRECTION_CASE} AS direction,
                    t.source::STRING AS source,
                    EXISTS(SELECT 1 FROM transactions AS v
                           WHERE v.user_id = t.user_id

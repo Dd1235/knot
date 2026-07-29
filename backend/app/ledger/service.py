@@ -59,6 +59,56 @@ class PostedTransaction:
     deduplicated: bool = False
 
 
+# How a transaction is described to a human, derived from its legs rather than
+# stored. Order matters: first match wins.
+#
+# Three of these branches exist because the old four-branch version fell through
+# to 'spent' for anything it did not recognise, and that produced outright lies
+# on the most-looked-at screen: "borrowed 5,000 from Priya" read as *spent*
+# 5,000, a cash withdrawal read as spending, and so did every SIP.
+DIRECTION_CASE = """
+                   CASE
+                       WHEN t.metadata->>'voids' IS NOT NULL THEN 'reversal'
+                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
+                                    JOIN accounts AS a ON a.id = l.account_id
+                                    WHERE l.transaction_id = t.id
+                                      AND a.type = 'liability'
+                                      AND a.name != 'equity:opening' AND l.amount > 0)
+                           THEN 'repaid'
+                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
+                                    JOIN accounts AS a ON a.id = l.account_id
+                                    WHERE l.transaction_id = t.id
+                                      AND a.type = 'liability'
+                                      AND a.name != 'equity:opening' AND l.amount < 0)
+                           THEN 'borrowed'
+                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
+                                    JOIN accounts AS a ON a.id = l.account_id
+                                    WHERE l.transaction_id = t.id
+                                      AND a.type = 'receivable' AND l.amount > 0)
+                           THEN 'lent'
+                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
+                                    JOIN accounts AS a ON a.id = l.account_id
+                                    WHERE l.transaction_id = t.id
+                                      AND a.type = 'receivable' AND l.amount < 0)
+                           THEN 'settled'
+                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
+                                    JOIN accounts AS a ON a.id = l.account_id
+                                    WHERE l.transaction_id = t.id
+                                      AND a.name LIKE 'invest:%%' AND l.amount > 0)
+                           THEN 'invested'
+                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
+                                    JOIN accounts AS a ON a.id = l.account_id
+                                    WHERE l.transaction_id = t.id AND a.type = 'income')
+                           THEN 'received'
+                       WHEN NOT EXISTS (SELECT 1 FROM transaction_legs AS l
+                                        JOIN accounts AS a ON a.id = l.account_id
+                                        WHERE l.transaction_id = t.id
+                                          AND a.type != 'asset')
+                           THEN 'transfer'
+                       ELSE 'spent'
+                   END"""
+
+
 def _account_type(name: str) -> str:
     prefix = name.split(":", 1)[0]
     return {
@@ -407,7 +457,7 @@ async def recent_transactions(user_handle: str, limit: int = 20) -> list[dict]:
     money moved."""
     async with pool().connection() as conn:
         cur = await conn.execute(
-            """
+            f"""
             SELECT t.id::STRING, t.occurred_at, t.description, t.category,
                    t.source::STRING, t.raw_input,
                    t.metadata->>'annotation' AS annotation,
@@ -416,24 +466,7 @@ async def recent_transactions(user_handle: str, limit: int = 20) -> list[dict]:
                    (SELECT COALESCE(SUM(l.amount) FILTER (WHERE l.amount > 0), 0)
                     FROM transaction_legs AS l
                     WHERE l.transaction_id = t.id)::STRING AS amount,
-                   CASE
-                       WHEN t.metadata->>'voids' IS NOT NULL THEN 'reversal'
-                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
-                                    JOIN accounts AS a ON a.id = l.account_id
-                                    WHERE l.transaction_id = t.id
-                                      AND a.type = 'receivable' AND l.amount > 0)
-                           THEN 'lent'
-                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
-                                    JOIN accounts AS a ON a.id = l.account_id
-                                    WHERE l.transaction_id = t.id
-                                      AND a.type = 'receivable' AND l.amount < 0)
-                           THEN 'settled'
-                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
-                                    JOIN accounts AS a ON a.id = l.account_id
-                                    WHERE l.transaction_id = t.id AND a.type = 'income')
-                           THEN 'received'
-                       ELSE 'spent'
-                   END AS direction,
+                   {DIRECTION_CASE} AS direction,
                    (SELECT string_agg(p.display_name, ', ')
                     FROM transaction_legs AS l
                     JOIN accounts AS a ON a.id = l.account_id

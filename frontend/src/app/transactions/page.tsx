@@ -8,11 +8,18 @@ import Money from "@/components/ui/Money";
 import { GROUP_COLORS } from "@/lib/groups";
 import { glyphFor } from "@/lib/categoryGlyphs";
 
+/* Every direction needs an entry. Anything missing fell through to `spent`,
+ * which is how "borrowed 5,000 from Priya" came to display as money going out. */
 const DIRECTION: Record<string, { label: string; sign: string; tone: string }> = {
   spent: { label: "spent", sign: "−", tone: "text-ink-primary" },
   received: { label: "received", sign: "+", tone: "text-positive" },
   lent: { label: "lent", sign: "→", tone: "text-info" },
   settled: { label: "settled", sign: "←", tone: "text-positive" },
+  borrowed: { label: "borrowed", sign: "+", tone: "text-info" },
+  repaid: { label: "repaid", sign: "−", tone: "text-ink-primary" },
+  // Not spending: the money changed shape. Never tinted like an outflow.
+  invested: { label: "invested", sign: "→", tone: "text-positive" },
+  transfer: { label: "moved", sign: "↔", tone: "text-ink-secondary" },
   reversal: { label: "reversal", sign: "↺", tone: "text-ink-muted" },
 };
 
@@ -105,7 +112,7 @@ export default function TransactionsPage() {
 
   const dayTotal = (rows: LedgerTransaction[]) =>
     rows
-      .filter((t) => t.direction === "spent" && !t.voided)
+      .filter((t) => t.direction === "spent" && !t.voided)  // not invested, not moved
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
   return (
