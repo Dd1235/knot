@@ -81,8 +81,21 @@ export default function VoiceMode({
   // Web Speech remains the fallback when it can't start.
   const realtimeRef = useRef<RealtimeSession | null>(null);
   const [mode, setMode] = useState<"realtime" | "fallback">("realtime");
+  const [engine, setEngine] = useState<"realtime" | "device">(() =>
+    typeof window === "undefined"
+      ? "realtime"
+      : ((localStorage.getItem("knot:voice") as "realtime" | "device") ?? "realtime"),
+  );
 
   useEffect(() => {
+    if (engine === "device") {
+      setMode("fallback");
+      begin();
+      return () => {
+        closedRef.current = true;
+        stopSpeaking();
+      };
+    }
     const session = new RealtimeSession({
       onState: (s: RealtimeState) => {
         if (closedRef.current) return;
@@ -111,7 +124,20 @@ export default function VoiceMode({
       stopSpeaking();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [engine]);
+
+  const switchEngine = (next: "realtime" | "device") => {
+    if (next === engine) return;
+    localStorage.setItem("knot:voice", next);
+    realtimeRef.current?.stop();
+    realtimeRef.current = null;
+    stopSpeaking();
+    closedRef.current = false;
+    silentRoundsRef.current = 0;
+    setReply("");
+    setTranscript("");
+    setEngine(next);
+  };
 
   // Escape closes; Tab is trapped inside the overlay.
   useEffect(() => {
@@ -164,7 +190,25 @@ export default function VoiceMode({
       aria-label="Voice conversation"
       className="fixed inset-0 z-50 flex flex-col bg-surface-overlay px-6 pt-[env(safe-area-inset-top)] backdrop-blur"
     >
-      <div className="flex h-14 items-center justify-end">
+      <div className="flex h-14 items-center justify-between gap-2">
+        <div role="tablist" aria-label="Voice engine" className="flex gap-1">
+          {(["realtime", "device"] as const).map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={engine === id}
+              onClick={() => switchEngine(id)}
+              className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
+                engine === id
+                  ? "bg-brand text-ink-on-brand font-medium"
+                  : "border border-line text-ink-secondary"
+              }`}
+            >
+              {id === "realtime" ? "realtime" : "on-device"}
+            </button>
+          ))}
+        </div>
         <Button onClick={onClose} aria-label="Exit voice mode">
           ✕ exit voice
         </Button>
@@ -200,7 +244,9 @@ export default function VoiceMode({
         </p>
         {mode === "fallback" && (
           <p className="-mt-6 text-[11px] text-ink-muted">
-            using on-device speech — realtime voice unavailable
+            {engine === "device"
+              ? "on-device speech — free, no audio leaves your phone"
+              : "realtime unavailable — using on-device speech"}
           </p>
         )}
 
