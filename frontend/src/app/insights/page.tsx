@@ -6,6 +6,7 @@ import AppHeader from "@/components/ui/AppHeader";
 import Button from "@/components/ui/Button";
 import Logo from "@/components/ui/Logo";
 import Money from "@/components/ui/Money";
+import { GROUP_COLORS, GROUP_LABELS } from "@/lib/groups";
 import SegmentedNav from "@/components/ui/SegmentedNav";
 import Stat from "@/components/ui/Stat";
 import {
@@ -27,19 +28,6 @@ import {
 const PERIODS = [7, 30, 90] as const;
 type Period = (typeof PERIODS)[number];
 
-// Fixed group → color mapping (never index-cycled). `other` is the residual
-// bucket and is deliberately achromatic — no fourth hue clears the all-pairs
-// CVD floor on this surface, and a residual must never impersonate a series.
-const GROUP_COLORS: Record<string, string> = {
-  essentials: "var(--chart-1)",
-  discretionary: "var(--chart-2)",
-  savings_invest: "var(--chart-3)",
-  other: "var(--chart-other)",
-};
-
-const GROUP_LABELS: Record<string, string> = {
-  savings_invest: "savings & invest",
-};
 
 const CADENCE_SHORT: Record<string, string> = {
   monthly: "mo",

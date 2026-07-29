@@ -148,8 +148,12 @@ export interface LedgerTransaction {
   occurred_at: string;
   description: string;
   category: string;
+  grp: string;
   source: string;
   amount: string;
+  direction: string;
+  people: string | null;
+  raw_input: string;
   voided: boolean;
 }
 

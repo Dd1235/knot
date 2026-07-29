@@ -26,3 +26,4 @@ out/
 # Misc
 *.log
 scratch/
+frontend/public/_seed.html
