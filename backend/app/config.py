@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     )
 
     database_url: str
+    cors_origins: str = "http://localhost:3000"
 
     # Provider selection: "openai" (free dev mode) or "bedrock" (AWS-judged mode).
     llm_provider: str = "openai"

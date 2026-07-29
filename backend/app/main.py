@@ -2,10 +2,12 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.chat import router as chat_router
 from app.api.ledger import router as ledger_router
 from app.api.memory import router as memory_router
+from app.config import get_settings
 from app.db.pool import close_pool, open_pool, pool
 
 
@@ -17,6 +19,12 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Ledger", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_settings().cors_origins.split(","),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(ledger_router)
 app.include_router(chat_router)
 app.include_router(memory_router)
