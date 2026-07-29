@@ -1,0 +1,114 @@
+"""Semantic memory: durable facts, consolidated by meaning.
+
+Write path is upsert-by-similarity: a new fact is vector-compared against the
+user's existing facts of the same kind *inside the same serializable
+transaction* that writes it. Near-duplicates reinforce the existing row
+(evidence_count, confidence) instead of piling up copies.
+
+Read path scores facts by similarity x confidence x recency decay.
+"""
+
+import math
+from datetime import UTC, datetime
+
+from psycopg import AsyncConnection
+from psycopg.rows import dict_row
+from psycopg.types.json import Json
+
+from app.db.pool import pool
+from app.db.tx import run_serializable
+from app.ledger.service import ensure_user
+from app.llm.embeddings import embed_one, to_pgvector
+
+# L2 distance on normalized vectors: 0.5 ~= cosine similarity 0.875.
+DEDUP_DISTANCE = 0.5
+# Confidence halves roughly every 90 days without reinforcement.
+DECAY_DAYS = 90 / math.log(2)
+
+
+async def remember(
+    user_handle: str,
+    kind: str,
+    subject: str,
+    fact: str,
+    structured: dict | None = None,
+) -> dict:
+    vector = to_pgvector(await embed_one(f"{subject}: {fact}" if subject else fact))
+
+    async def _fn(conn: AsyncConnection) -> dict:
+        user_id = await ensure_user(conn, user_handle)
+        cur = await conn.execute(
+            """
+            SELECT id, fact, embedding <-> %s::VECTOR AS distance
+            FROM semantic_facts
+            WHERE user_id = %s AND kind = %s AND superseded_by IS NULL
+            ORDER BY embedding <-> %s::VECTOR
+            LIMIT 1
+            """,
+            (vector, user_id, kind, vector),
+        )
+        nearest = await cur.fetchone()
+        if nearest and nearest[2] < DEDUP_DISTANCE:
+            await conn.execute(
+                """
+                UPDATE semantic_facts
+                SET evidence_count = evidence_count + 1,
+                    confidence = LEAST(0.99, confidence + 0.1),
+                    last_reinforced_at = now()
+                WHERE id = %s
+                """,
+                (nearest[0],),
+            )
+            return {"reinforced": True, "fact_id": str(nearest[0]), "existing_fact": nearest[1]}
+
+        cur = await conn.execute(
+            """
+            INSERT INTO semantic_facts (user_id, kind, subject, fact, structured, embedding)
+            VALUES (%s, %s, %s, %s, %s, %s::VECTOR)
+            RETURNING id
+            """,
+            (user_id, kind, subject, fact, Json(structured or {}), vector),
+        )
+        return {"created": True, "fact_id": str((await cur.fetchone())[0])}
+
+    return await run_serializable(_fn)
+
+
+def _decayed_score(similarity: float, confidence: float, last_reinforced_at) -> float:
+    age_days = (datetime.now(UTC) - last_reinforced_at).total_seconds() / 86400
+    return similarity * confidence * math.exp(-age_days / DECAY_DAYS)
+
+
+async def search(
+    user_handle: str,
+    query_vector: list[float],
+    k: int = 5,
+    kinds: list[str] | None = None,
+) -> list[dict]:
+    vector = to_pgvector(query_vector)
+    async with pool().connection() as conn:
+        cur = await conn.execute(
+            """
+            SELECT f.id::STRING, f.kind, f.subject, f.fact, f.confidence,
+                   f.evidence_count, f.last_reinforced_at,
+                   1 - (f.embedding <-> %s::VECTOR) ^ 2 / 2 AS similarity
+            FROM semantic_facts AS f
+            JOIN users AS u ON u.id = f.user_id
+            WHERE u.handle = %s AND f.superseded_by IS NULL
+              AND (%s::STRING[] IS NULL OR f.kind = ANY(%s))
+            ORDER BY f.embedding <-> %s::VECTOR
+            LIMIT %s
+            """,
+            (vector, user_handle, kinds, kinds, vector, k * 3),
+        )
+        cur.row_factory = dict_row
+        rows = await cur.fetchall()
+
+    for row in rows:
+        row["score"] = round(
+            _decayed_score(row["similarity"], row["confidence"], row["last_reinforced_at"]), 4
+        )
+        row["similarity"] = round(row["similarity"], 4)
+        row["last_reinforced_at"] = row["last_reinforced_at"].isoformat()
+    rows.sort(key=lambda r: r["score"], reverse=True)
+    return rows[:k]
