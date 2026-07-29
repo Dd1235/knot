@@ -59,3 +59,6 @@ gpt-4o-mini recorded the taught rent split in only 1 of 3 identical runs (and on
 
 ### D18. Embedding provider is pinned per environment, never switched mid-flight
 OpenAI and Titan embeddings share our 512-dim column shape but live in different vector spaces — a query embedded by one is meaningless against vectors stored by the other. So `EMBEDDING_PROVIDER` is an environment-lifetime choice: dev runs OpenAI; the judged deployment starts fresh on Bedrock Titan and seeds its own demo data. If a mid-life switch is ever needed, every stored embedding must be re-embedded.
+
+### D19. Voice is a ladder: Web Speech now, Nova 2 Sonic when AWS clears
+Browser Web Speech API (`en-IN`) gives free on-device speech-to-text with live transcripts, and speechSynthesis speaks replies — voice-first UX with zero cloud dependency, shipping today. Amazon Nova 2 Sonic (bidirectional streaming, barge-in, Hindi) upgrades the experience later behind the same `/chat` + tool registry; the voice path never gets its own business logic. AWS's account-verification gate blocks all Bedrock generative models equally (tested: same "Operation not allowed" via SigV4 and Bedrock API key), so no provider swap dodges it — only waiting does.
