@@ -5,7 +5,8 @@ import { LedgerTransaction, inr, listTransactions, voidTransaction } from "@/lib
 import AppHeader from "@/components/ui/AppHeader";
 import Button from "@/components/ui/Button";
 import Money from "@/components/ui/Money";
-import { GROUP_COLORS, GROUP_LABELS } from "@/lib/groups";
+import { GROUP_COLORS } from "@/lib/groups";
+import { glyphFor } from "@/lib/categoryGlyphs";
 
 const DIRECTION: Record<string, { label: string; sign: string; tone: string }> = {
   spent: { label: "spent", sign: "−", tone: "text-ink-primary" },
@@ -32,6 +33,25 @@ function dayLabel(iso: string): string {
 
 const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+
+/** Below this, a row is part of the background texture of a day rather than
+ * an event. 76% of UPI payments land here, so if they all shout, nothing does. */
+const MINOR_AMOUNT = 100;
+
+/** `recurring` writes "Netflix (auto, 2026-07)" into the description. That is
+ * plumbing leaking into the UI: strip it and show a badge instead. */
+function cleanName(description: string): { name: string; auto: boolean } {
+  const m = description.match(/^(.*?)\s*\(auto,\s*[\d-]+\)$/);
+  return m ? { name: m[1], auto: true } : { name: description, auto: false };
+}
+
+function Badge({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded border border-line px-1 py-px text-[10px] uppercase tracking-wide text-ink-muted">
+      {children}
+    </span>
+  );
+}
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<LedgerTransaction[]>([]);
@@ -103,7 +123,7 @@ export default function TransactionsPage() {
         ) : (
           days.map(([day, rows]) => (
             <section key={day} className="mb-5">
-              <div className="mb-1.5 flex items-baseline justify-between px-1">
+              <div className="sticky top-0 z-10 mb-1.5 flex items-baseline justify-between bg-surface-base px-1 py-1">
                 <h2 className="text-[11px] font-medium uppercase tracking-wide text-ink-secondary">
                   {day}
                 </h2>
@@ -118,43 +138,64 @@ export default function TransactionsPage() {
                 {rows.map((t) => {
                   const dir = DIRECTION[t.direction] ?? DIRECTION.spent;
                   const dead = t.voided || t.direction === "reversal";
+                  const { name, auto } = cleanName(t.description);
+                  const minor = Number(t.amount) < MINOR_AMOUNT && t.direction === "spent";
                   return (
                     <div
                       key={t.id}
-                      className={`group flex items-center gap-3 px-3 py-2.5 ${
-                        dead ? "opacity-55" : ""
-                      }`}
+                      className={`group flex items-start gap-3 px-3 ${
+                        minor ? "py-1.5" : "py-2.5"
+                      } ${dead ? "opacity-55" : ""}`}
                     >
-                      {/* Colour follows the spending group, never the row index */}
+                      {/* Identity is a glyph, not a hue: shape survives
+                          greyscale, colour blindness and a twelfth category.
+                          The tint behind it is the group, kept very low
+                          contrast so it never competes with the amount. */}
                       <span
                         aria-hidden
-                        className="h-8 w-1 shrink-0 rounded-full"
+                        className={`flex shrink-0 items-center justify-center rounded-full ${
+                          minor ? "size-6 text-[11px]" : "size-8 text-sm"
+                        }`}
                         style={{
-                          backgroundColor:
-                            GROUP_COLORS[t.grp] ?? GROUP_COLORS.other,
+                          backgroundColor: `color-mix(in oklab, ${
+                            GROUP_COLORS[t.grp] ?? GROUP_COLORS.other
+                          } 16%, transparent)`,
                         }}
-                      />
+                      >
+                        {glyphFor(t.category, t.description)}
+                      </span>
+
                       <div className="min-w-0 flex-1">
                         <p
-                          className={`truncate text-sm ${
-                            t.voided ? "text-ink-muted line-through" : ""
-                          }`}
+                          className={`flex items-center gap-1.5 truncate ${
+                            minor ? "text-[13px] text-ink-secondary" : "text-sm"
+                          } ${t.voided ? "text-ink-muted line-through" : ""}`}
                         >
-                          {t.description}
+                          <span className="truncate">{name}</span>
                           {t.people && (
-                            <span className="text-ink-secondary"> · {t.people}</span>
+                            <span className="shrink-0 text-ink-secondary">· {t.people}</span>
                           )}
+                          {auto && <Badge>auto</Badge>}
+                          {t.source === "voice" && <Badge>voice</Badge>}
                         </p>
-                        <p className="mt-0.5 truncate text-[11px] text-ink-secondary">
-                          {t.category} · {GROUP_LABELS[t.grp] ?? t.grp} · {timeOf(t.occurred_at)}
-                          {t.source === "voice" && " · 🎙"}
-                          {t.raw_input && (
-                            <span className="text-ink-muted"> · “{t.raw_input}”</span>
-                          )}
+                        <p className="mt-0.5 truncate text-[11px] text-ink-muted">
+                          {t.category} · {timeOf(t.occurred_at)}
+                          {t.raw_input && <span> · “{t.raw_input}”</span>}
                         </p>
+                        {/* Written free, on the LLM call the memory writer
+                            already makes. Present on a minority of rows by
+                            design — if it were on all of them it would be
+                            wallpaper. */}
+                        {t.annotation && !dead && (
+                          <p className="mt-1 flex items-start gap-1.5 text-[11px] text-ink-secondary">
+                            <span aria-hidden className="mt-1 size-1 shrink-0 rounded-full bg-brand" />
+                            <span>{t.annotation}</span>
+                          </p>
+                        )}
                       </div>
+
                       <div className="flex shrink-0 items-center gap-2">
-                        <span className={`text-sm ${dir.tone}`}>
+                        <span className={`${minor ? "text-[13px]" : "text-sm"} ${dir.tone}`}>
                           <span className="text-ink-muted">{dir.sign}</span>
                           <Money value={t.amount} tone="neutral" />
                         </span>
@@ -164,7 +205,7 @@ export default function TransactionsPage() {
                             tone="negative"
                             onClick={() => onVoid(t)}
                             disabled={busyId === t.id}
-                            aria-label={`Void ${t.description}`}
+                            aria-label={`Void ${name}`}
                             className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
                           >
                             void

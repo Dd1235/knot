@@ -155,6 +155,9 @@ export interface LedgerTransaction {
   people: string | null;
   raw_input: string;
   voided: boolean;
+  /** One short note written by the memory pass, on a minority of rows. */
+  annotation: string | null;
+  annotation_kind: string | null;
 }
 
 export const listTransactions = (limit = 50) =>
