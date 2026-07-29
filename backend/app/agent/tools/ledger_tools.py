@@ -6,6 +6,8 @@ from decimal import Decimal
 from app.agent.registry import ToolContext, register
 from app.ledger import service
 from app.ledger.service import LegSpec, UnbalancedTransaction
+from app.memory import episodic, writer
+from app.tasks import fire_and_forget
 
 TWO_PLACES = Decimal("0.01")
 
@@ -108,6 +110,19 @@ async def record_transaction(ctx: ToolContext, args: dict) -> dict:
         category=category,
         occurred_at=_parse_occurred_at(args.get("occurred_at")),
     )
+    event_text = (
+        f"{args['description']} (₹{amount}, {args['direction']}, category {category}"
+        + (f", split with {', '.join(args['split_with'])}" if args.get("split_with") else "")
+        + ")"
+    )
+    fire_and_forget(
+        episodic.record_event(
+            ctx.user_handle, "txn", event_text,
+            ref_transaction_id=posted.id, session_id=ctx.session_id,
+        ),
+        "episodic-txn",
+    )
+    fire_and_forget(writer.process_event(ctx.user_handle, event_text), "memory-writer")
     return {
         "transaction_id": str(posted.id),
         "legs": posted.legs,
@@ -131,6 +146,13 @@ async def record_transaction(ctx: ToolContext, args: dict) -> dict:
 async def settle_up(ctx: ToolContext, args: dict) -> dict:
     amount = Decimal(str(args["amount"])).quantize(TWO_PLACES) if args.get("amount") else None
     posted = await service.settle_up(ctx.user_handle, args["person"], amount)
+    fire_and_forget(
+        episodic.record_event(
+            ctx.user_handle, "settlement", posted.description,
+            ref_transaction_id=posted.id, session_id=ctx.session_id,
+        ),
+        "episodic-settlement",
+    )
     return {
         "transaction_id": str(posted.id),
         "description": posted.description,
