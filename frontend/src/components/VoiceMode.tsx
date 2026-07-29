@@ -77,50 +77,76 @@ export default function VoiceMode({
   });
   startRef.current = mic.start;
 
-  // Realtime (WebRTC) is the good path: real barge-in, sub-second turns.
-  // Web Speech remains the fallback when it can't start.
+  // On-device (Web Speech) is the default: free, and good enough for the
+  // one-liners this app is mostly used for. Realtime is a deliberate opt-in —
+  // it bills per minute of audio both ways, and it earns that on genuine
+  // back-and-forth, where sub-second turns and barge-in actually matter.
   const realtimeRef = useRef<RealtimeSession | null>(null);
-  const [mode, setMode] = useState<"realtime" | "fallback">("realtime");
+  const [mode, setMode] = useState<"realtime" | "fallback">("fallback");
   const [engine, setEngine] = useState<"realtime" | "device">(() =>
     typeof window === "undefined"
-      ? "realtime"
-      : ((localStorage.getItem("knot:voice") as "realtime" | "device") ?? "realtime"),
+      ? "device"
+      : ((localStorage.getItem("knot:voice") as "realtime" | "device") ?? "device"),
   );
 
+  /* closedRef means "the whole overlay is gone", and only unmount may set it.
+   * It used to be set by the engine effect's cleanup too — two different
+   * lifetimes sharing one flag. After any cleanup it stayed true forever,
+   * which silently disabled begin(), every onState update (the ring froze on
+   * "listening" while transcripts kept moving) and the fallback path. */
   useEffect(() => {
+    closedRef.current = false;
+    return () => {
+      closedRef.current = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    // Each run of this effect gets its own token, so a stale run can never
+    // speak for a live one.
+    let live = true;
+
     if (engine === "device") {
       setMode("fallback");
       begin();
       return () => {
-        closedRef.current = true;
+        live = false;
+        mic.stop();
         stopSpeaking();
       };
     }
+
+    setMode("realtime");
     const session = new RealtimeSession({
       onState: (s: RealtimeState) => {
-        if (closedRef.current) return;
+        if (!live || closedRef.current) return;
         setState(s === "connecting" ? "thinking" : (s as VoiceState));
       },
-      onUserTranscript: (t) => setTranscript(t),
+      onUserTranscript: (t) => live && setTranscript(t),
       onAssistantTranscript: (t) => {
+        if (!live) return;
         setTranscript("");
         setReply(t);
       },
-      onTool: (name) => setTool(name),
-      onError: (message) => setReply(message),
+      onTool: (name) => live && setTool(name),
+      onError: (message) => live && setReply(message),
     });
     realtimeRef.current = session;
 
     session.start(authHeadersForRealtime()).catch(() => {
-      if (closedRef.current) return;
+      // Without this stop() a failed connect left its peer connection and
+      // microphone open while the Web Speech loop started on top of them.
+      session.stop();
+      if (!live) return;
       realtimeRef.current = null;
       setMode("fallback");
       begin();
     });
 
     return () => {
-      closedRef.current = true;
+      live = false;
       session.stop();
+      if (realtimeRef.current === session) realtimeRef.current = null;
       stopSpeaking();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,10 +155,10 @@ export default function VoiceMode({
   const switchEngine = (next: "realtime" | "device") => {
     if (next === engine) return;
     localStorage.setItem("knot:voice", next);
-    realtimeRef.current?.stop();
-    realtimeRef.current = null;
+    // Teardown belongs to the effect cleanup, which runs on the engine change.
+    // Doing it here as well is what previously clobbered closedRef and left
+    // on-device mode unable to start its microphone at all.
     stopSpeaking();
-    closedRef.current = false;
     silentRoundsRef.current = 0;
     setReply("");
     setTranscript("");
@@ -191,13 +217,21 @@ export default function VoiceMode({
       className="fixed inset-0 z-50 flex flex-col bg-surface-overlay px-6 pt-[env(safe-area-inset-top)] backdrop-blur"
     >
       <div className="flex h-14 items-center justify-between gap-2">
+        {/* Named by what they cost you, not by their technology. "realtime"
+            vs "on-device" told you nothing about which one bills per minute. */}
         <div role="tablist" aria-label="Voice engine" className="flex gap-1">
-          {(["realtime", "device"] as const).map((id) => (
+          {(
+            [
+              { id: "device", label: "free", hint: "On-device — free, one turn at a time" },
+              { id: "realtime", label: "live", hint: "Live conversation — natural, interruptible, billed per minute" },
+            ] as const
+          ).map(({ id, label, hint }) => (
             <button
               key={id}
               type="button"
               role="tab"
               aria-selected={engine === id}
+              title={hint}
               onClick={() => switchEngine(id)}
               className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
                 engine === id
@@ -205,7 +239,7 @@ export default function VoiceMode({
                   : "border border-line text-ink-secondary"
               }`}
             >
-              {id === "realtime" ? "realtime" : "on-device"}
+              {label}
             </button>
           ))}
         </div>

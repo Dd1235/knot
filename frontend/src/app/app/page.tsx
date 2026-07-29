@@ -10,7 +10,7 @@ import {
   inr,
   sendChatStream,
 } from "@/lib/api";
-import { speak, unlockSpeech, useSpeechInput } from "@/lib/speech";
+import { speak, stopSpeaking, unlockSpeech, useSpeechInput } from "@/lib/speech";
 import VoiceMode from "@/components/VoiceMode";
 import AppHeader from "@/components/ui/AppHeader";
 import Button, { buttonClass } from "@/components/ui/Button";
@@ -187,11 +187,25 @@ export default function ChatPage() {
     [busy, sessionId]
   );
 
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const mic = useSpeechInput({
     onInterim: setInput,
-    onFinal: (text) => send(text, { voice: true }),
+    // `voice: true` makes the reply spoken aloud. Suppressed while the voice
+    // overlay is open, or this page speaks the reply at the same time the
+    // overlay does — a second voice with a completely separate cause from the
+    // duplicated WebRTC sessions.
+    onFinal: (text) => send(text, { voice: !voiceOpen }),
   });
-  const [voiceOpen, setVoiceOpen] = useState(false);
+
+  // Opening the overlay must also silence this page's microphone; it was
+  // still listening underneath and answering out loud.
+  useEffect(() => {
+    if (voiceOpen) {
+      mic.stop();
+      stopSpeaking();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceOpen]);
 
   const newSession = () => {
     localStorage.removeItem("ledger:session");
