@@ -75,7 +75,13 @@ def _build_legs(
             },
             "category": {
                 "type": "string",
-                "description": "e.g. food, transport, rent, groceries, entertainment",
+                "description": (
+                    "Lowercase category; prefer one of: rent, groceries, "
+                    "utilities, transport, phone, internet, medical, education, "
+                    "emi, food, entertainment, shopping, subscriptions, travel, "
+                    "gifts, coffee, sip, mutual_funds, stocks, fd, savings, "
+                    "salary, freelance, interest, cashback"
+                ),
             },
             "split_with": {
                 "type": "array",

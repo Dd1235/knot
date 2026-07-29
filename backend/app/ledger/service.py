@@ -6,6 +6,7 @@ Account naming convention (type inferred from prefix):
     income:<source>            -> income    (e.g. income:salary)
     receivable:<person>        -> receivable (auto-creates the person)
     liability:<name>           -> liability
+    equity:opening             -> liability (opening-balance counterweight)
 
 Sign convention: debits positive, credits negative; legs of a transaction sum
 to exactly zero. A positive receivable balance means the person owes the user.
@@ -65,6 +66,10 @@ def _account_type(name: str) -> str:
         "income": "income",
         "receivable": "receivable",
         "liability": "liability",
+        # equity:opening balances the opening-balance entry. It must NOT fall
+        # through to 'asset' (that would double-count the opening amount);
+        # it is stored as a liability and excluded by name from net worth.
+        "equity": "liability",
     }.get(prefix, "asset")
 
 
