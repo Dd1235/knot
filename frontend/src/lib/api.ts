@@ -10,15 +10,25 @@ export function getUserHandle(): string {
   return user;
 }
 
+/** Session lives in an httpOnly cookie; every request must send credentials.
+ * A bearer token fallback covers clients where third-party cookies are blocked. */
 function authHeaders(): Record<string, string> {
   if (typeof window === "undefined") return {};
-  const passcode = localStorage.getItem("ledger:passcode");
-  return passcode ? { Authorization: `Bearer ${passcode}` } : {};
+  const token = localStorage.getItem("ledger:token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function api<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
+function onUnauthorized(): never {
+  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    window.location.href = "/login";
+  }
+  throw new Error("401: sign in required");
+}
+
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       "X-User": getUserHandle(),
@@ -26,13 +36,7 @@ async function api<T>(path: string, init?: RequestInit, retried = false): Promis
       ...(init?.headers ?? {}),
     },
   });
-  if (res.status === 401 && !retried && typeof window !== "undefined") {
-    const passcode = window.prompt("Enter the Ledger passcode:");
-    if (passcode) {
-      localStorage.setItem("ledger:passcode", passcode);
-      return api<T>(path, init, true);
-    }
-  }
+  if (res.status === 401) onUnauthorized();
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
   return res.json();
 }
@@ -76,11 +80,11 @@ export interface StreamCallbacks {
 export async function sendChatStream(
   message: string,
   sessionId: string | null,
-  callbacks: StreamCallbacks,
-  retried = false
+  callbacks: StreamCallbacks
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/chat/stream`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       "X-User": getUserHandle(),
@@ -88,13 +92,7 @@ export async function sendChatStream(
     },
     body: JSON.stringify({ message, session_id: sessionId }),
   });
-  if (res.status === 401 && !retried && typeof window !== "undefined") {
-    const passcode = window.prompt("Enter the Ledger passcode:");
-    if (passcode) {
-      localStorage.setItem("ledger:passcode", passcode);
-      return sendChatStream(message, sessionId, callbacks, true);
-    }
-  }
+  if (res.status === 401) onUnauthorized();
   if (!res.ok || !res.body) throw new Error(`${res.status}: ${await res.text()}`);
 
   const reader = res.body.getReader();
@@ -254,20 +252,15 @@ export const getRecurring = () =>
 
 // Fetches the CSV with auth headers (never window.open — headers would be lost)
 // and hands it to the browser as a download.
-export async function downloadCsv(days = 90, retried = false): Promise<void> {
+export async function downloadCsv(days = 90): Promise<void> {
   const res = await fetch(`${API_BASE}/analytics/export.csv?days=${days}`, {
+    credentials: "include",
     headers: {
       "X-User": getUserHandle(),
       ...authHeaders(),
     },
   });
-  if (res.status === 401 && !retried && typeof window !== "undefined") {
-    const passcode = window.prompt("Enter the Ledger passcode:");
-    if (passcode) {
-      localStorage.setItem("ledger:passcode", passcode);
-      return downloadCsv(days, true);
-    }
-  }
+  if (res.status === 401) onUnauthorized();
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -287,3 +280,38 @@ export const inr = (value: string | number) =>
     maximumFractionDigits: 2,
     minimumFractionDigits: 0,
   }).format(Number(value));
+
+export interface Account {
+  email: string;
+  token: string;
+}
+
+async function authRequest(path: string, email: string, password: string): Promise<Account> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.detail ?? `request failed (${res.status})`);
+  if (body.token && typeof window !== "undefined") {
+    localStorage.setItem("ledger:token", body.token);
+  }
+  return body as Account;
+}
+
+export const signup = (email: string, password: string) =>
+  authRequest("/auth/signup", email, password);
+export const login = (email: string, password: string) =>
+  authRequest("/auth/login", email, password);
+
+export async function logout(): Promise<void> {
+  await fetch(`${API_BASE}/auth/logout`, { method: "POST", credentials: "include" });
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("ledger:token");
+    localStorage.removeItem("ledger:session");
+  }
+}
+
+export const getMe = () => api<{ handle: string }>("/auth/me");
