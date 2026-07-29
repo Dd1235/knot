@@ -1,4 +1,4 @@
-# Ledger — Design Decision Log
+# Knot — Design Decision Log
 
 Running log of every significant design decision, newest last. Format: what we chose, what we rejected, and why.
 

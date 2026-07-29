@@ -1,4 +1,4 @@
-# Ledger — Product Roadmap
+# Knot — Product Roadmap
 
 From the 2026-07-29 product review. Ordered by (hackathon judging value × effort).
 Deadline: Aug 18. Items marked 🏁 are required for submission.

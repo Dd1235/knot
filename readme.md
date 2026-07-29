@@ -1,7 +1,7 @@
-# Ledger — a voice-first personal finance agent with a real memory
+# Knot — money you can just talk about
 
-Talk to it like a person: *"lent Priya ₹500 for lunch"*, *"paid 12,000 rent, split three ways"*,
-*"did Priya pay me back yet?"*. Every money statement becomes a balanced double-entry
+You tie a knot so you don't forget. Talk to it like a person: *"lent Priya ₹500 for lunch"*,
+*"paid 12,000 rent, split three ways"*, *"did Priya pay me back yet?"*. Every money statement becomes a balanced double-entry
 transaction committed atomically, while the people, habits, and rules of your financial life
 become durable agent memory — recalled by meaning, not exact match.
 
@@ -33,7 +33,14 @@ distributed, failure-surviving database. No bolt-on vector DB, no separate cache
      'https://cockroachlabs.cloud/clusters/<CLUSTER_ID>/cert'
    ```
 
-3. Backend: `cd backend && uv sync && uv run python -m app.db.migrate && uv run uvicorn app.main:app`
+3. Run both servers: `./scripts/dev.sh start` (backend :8000, frontend :3100).
+   Stop with `./scripts/dev.sh stop`.
+
+## Design system
+
+Colours, spacing and type live as tokens in `frontend/src/app/globals.css`;
+components never hardcode a palette value. `cd frontend && npm run check:tokens`
+enforces that with seven grep gates.
 
 ## Status
 

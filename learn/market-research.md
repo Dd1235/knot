@@ -19,7 +19,7 @@ Common paid-tier feature set: auto-categorization with learning, recurring/subsc
 detection, budgets per category, goals, net worth, investment tracking, monthly reports,
 CSV export, cashflow (income vs spend), bill reminders.
 
-## How each maps to Ledger (our advantages)
+## How each maps to Knot (our advantages)
 
 1. **Learning categorization** (Copilot's moat) — we already have it: procedural
    rules + semantic merchant facts, taught by voice ("chai wala means the tea
@@ -38,7 +38,7 @@ CSV export, cashflow (income vs spend), bill reminders.
    detect from bank feeds; we detect from memory, and can *prompt before* the
    charge ("Netflix renews tomorrow").
 5. **Budgets/Pots** — YNAB-style zero-based is heavy; Jupiter-style pots are
-   approachable. Ledger take: monthly caps per **spending group** (essentials /
+   approachable. Knot take: monthly caps per **spending group** (essentials /
    discretionary / savings-investments / debt) with agent nudges, not hard locks.
 6. **Reports** — deterministic SQL dashboards (daily/weekly/monthly trends,
    group split, category breakdown, receivables aging) + CSV export. AI never
