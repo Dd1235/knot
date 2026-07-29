@@ -36,6 +36,28 @@ distributed, failure-surviving database. No bolt-on vector DB, no separate cache
 3. Run both servers: `./scripts/dev.sh start` (backend :8000, frontend :3100).
    Stop with `./scripts/dev.sh stop`.
 
+## How it works
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full picture: the double-entry
+ledger and its serializable guarantees, the four memory stores and their
+retrieval strategies, and how both live in one CockroachDB cluster.
+
+## CockroachDB and AWS tools used
+
+**CockroachDB**
+- **Distributed vector indexing** — three `CREATE VECTOR INDEX`es (episodic,
+  semantic, procedural memory), user-scoped. Memory consolidation runs its
+  similarity search *inside* the transaction that writes the fact.
+- **`ccloud` CLI** — cluster provisioning and connection retrieval.
+- **Cloud MCP Server** — schema exploration and query debugging (`.mcp.json`).
+- **Docs MCP Server** — used throughout; feedback in
+  [docs/crdb-tools-feedback.md](docs/crdb-tools-feedback.md).
+- Also load-bearing: serializable isolation with 40001 retry handling,
+  Row-Level TTL on three tables, JSONB.
+
+**AWS** — Amazon Bedrock (Titan embeddings, Nova chat, Nova Sonic voice) behind
+a swappable provider protocol; App Runner + S3 + CloudWatch for deployment.
+
 ## Design system
 
 Colours, spacing and type live as tokens in `frontend/src/app/globals.css`;
