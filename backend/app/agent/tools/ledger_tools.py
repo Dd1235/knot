@@ -133,7 +133,12 @@ async def record_transaction(ctx: ToolContext, args: dict) -> dict:
         ),
         "episodic-txn",
     )
-    fire_and_forget(writer.process_event(ctx.user_handle, event_text), "memory-writer")
+    fire_and_forget(
+        writer.process_event(
+            ctx.user_handle, event_text, posted.id, args["description"]
+        ),
+        "memory-writer",
+    )
     return {
         "transaction_id": str(posted.id),
         "legs": posted.legs,

@@ -410,6 +410,8 @@ async def recent_transactions(user_handle: str, limit: int = 20) -> list[dict]:
             """
             SELECT t.id::STRING, t.occurred_at, t.description, t.category,
                    t.source::STRING, t.raw_input,
+                   t.metadata->>'annotation' AS annotation,
+                   t.metadata->>'annotation_kind' AS annotation_kind,
                    COALESCE(cg.grp, 'other') AS grp,
                    (SELECT COALESCE(SUM(l.amount) FILTER (WHERE l.amount > 0), 0)
                     FROM transaction_legs AS l
