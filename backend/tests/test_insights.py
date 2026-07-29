@@ -79,4 +79,7 @@ async def test_immaterial_and_unchanged_categories_are_not_movers(user):
 
 async def test_empty_ledger_returns_no_insights_without_calling_the_model(user):
     result = await service.generate(user, days=30)
-    assert result == {"insights": [], "cached": False}
+    assert result["insights"] == []
+    assert result["cached"] is False
+    # facts ride along so the UI can render movers without a second call
+    assert "facts" in result

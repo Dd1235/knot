@@ -33,9 +33,28 @@ def defuse_formula(value: str) -> str:
 @router.get("/summary")
 async def summary(
     days: int = Query(default=30, ge=1, le=365),
+    offset_days: int = Query(default=0, ge=0, le=365),
     x_user: str = Depends(current_user),
 ) -> dict:
-    return await analytics.summary(x_user, days)
+    return await analytics.summary(x_user, days, offset_days)
+
+
+@router.get("/rhythm")
+async def rhythm(
+    days: int = Query(default=30, ge=1, le=365),
+    x_user: str = Depends(current_user),
+) -> dict:
+    return await analytics.rhythm(x_user, days)
+
+
+@router.get("/safe-to-spend")
+async def safe_to_spend(x_user: str = Depends(current_user)) -> dict:
+    return await analytics.safe_to_spend(x_user)
+
+
+@router.get("/cash")
+async def cash(x_user: str = Depends(current_user)) -> dict:
+    return await analytics.cash_float(x_user)
 
 
 @router.get("/export.csv")

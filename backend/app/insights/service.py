@@ -96,8 +96,11 @@ async def _compute_facts(user_handle: str, days: int) -> dict:
         "by_group": current["by_group"],
         "movers": movers,
         "monthly_committed": commitments["monthly_total"],
+        # Prorate: `committed` is a monthly figure, `total_spend` covers `days`.
         "committed_share_of_spend": (
-            float(round(committed / total_spend * 100, 1)) if total_spend > 0 else None
+            float(round(committed * Decimal(days) / 30 / total_spend * 100, 1))
+            if total_spend > 0
+            else None
         ),
         "active_commitments": [
             {"name": c["name"], "amount": c["amount"], "cadence": c["cadence"]}
@@ -138,11 +141,11 @@ async def generate(user_handle: str, days: int = 30, refresh: bool = False) -> d
     if not refresh:
         cached = await _recent_stored(user_handle, max_age_hours=12)
         if cached:
-            return {"insights": cached, "cached": True}
+            return {"insights": cached, "facts": None, "cached": True}
 
     facts = await _compute_facts(user_handle, days)
     if Decimal(facts["total_spend"]) == 0 and not facts["active_commitments"]:
-        return {"insights": [], "cached": False}
+        return {"insights": [], "facts": facts, "cached": False}
 
     response = await get_provider().chat(
         SYSTEM,
@@ -155,7 +158,7 @@ async def generate(user_handle: str, days: int = 30, refresh: bool = False) -> d
         items = json.loads(raw).get("insights", [])
     except (json.JSONDecodeError, AttributeError):
         log.warning("insights model returned unparseable output: %.150s", raw)
-        return {"insights": [], "cached": False}
+        return {"insights": [], "facts": facts, "cached": False}
 
     now = datetime.now(UTC).isoformat()
     insights = [
@@ -168,4 +171,4 @@ async def generate(user_handle: str, days: int = 30, refresh: bool = False) -> d
     for item in insights:
         await episodic.record_event(user_handle, "insight", item["text"])
 
-    return {"insights": insights, "cached": False}
+    return {"insights": insights, "facts": facts, "cached": False}
