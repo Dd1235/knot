@@ -4,7 +4,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from app.ledger import service
+from app.ledger import recurring, service
 from app.ledger.service import (
     LegSpec,
     NothingOutstanding,
@@ -105,3 +105,8 @@ async def list_transactions(
     limit: int = 20, x_user: str = Header(default="demo")
 ) -> dict:
     return {"transactions": await service.recent_transactions(x_user, limit)}
+
+
+@router.get("/recurring")
+async def list_recurring(x_user: str = Header(default="demo")) -> dict:
+    return await recurring.list_commitments(x_user)

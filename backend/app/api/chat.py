@@ -7,7 +7,9 @@ from pydantic import BaseModel
 
 from app.agent.loop import run_turn, run_turn_stream
 from app.agent.registry import ToolContext
+from app.ledger import recurring
 from app.memory import working
+from app.tasks import fire_and_forget
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -34,6 +36,7 @@ async def _persist_turn(session_id: UUID, message: str, done: dict) -> None:
 @router.post("/stream")
 async def chat_stream(body: ChatIn, x_user: str = Header(default="demo")):
     session_id = await working.get_or_create_session(x_user, body.session_id)
+    fire_and_forget(recurring.post_due(x_user), "recurring-post")
     history = await working.load_history(session_id)
     ctx = ToolContext(user_handle=x_user, session_id=str(session_id))
 
@@ -65,6 +68,7 @@ async def chat_stream(body: ChatIn, x_user: str = Header(default="demo")):
 @router.post("")
 async def chat(body: ChatIn, x_user: str = Header(default="demo")) -> dict:
     session_id = await working.get_or_create_session(x_user, body.session_id)
+    fire_and_forget(recurring.post_due(x_user), "recurring-post")
     history = await working.load_history(session_id)
 
     ctx = ToolContext(user_handle=x_user, session_id=str(session_id))
