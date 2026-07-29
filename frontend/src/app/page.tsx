@@ -15,6 +15,7 @@ import VoiceMode from "@/components/VoiceMode";
 import AppHeader from "@/components/ui/AppHeader";
 import Button, { buttonClass } from "@/components/ui/Button";
 import Logo from "@/components/ui/Logo";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 import Money from "@/components/ui/Money";
 import Pill from "@/components/ui/Pill";
 import { inputClass } from "@/components/ui/styles";
@@ -237,6 +238,7 @@ export default function ChatPage() {
             <Link href="/transactions" aria-label="All transactions" className={buttonClass()}>
               ledger
             </Link>
+            <ThemeToggle />
           </>
         }
       >
