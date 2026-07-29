@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.auth.deps import current_user
@@ -103,7 +103,7 @@ async def balances(x_user: str = Depends(current_user)) -> dict:
 
 @router.get("/transactions")
 async def list_transactions(
-    limit: int = 20, x_user: str = Depends(current_user)
+    limit: int = Query(default=20, ge=1, le=200), x_user: str = Depends(current_user)
 ) -> dict:
     return {"transactions": await service.recent_transactions(x_user, limit)}
 

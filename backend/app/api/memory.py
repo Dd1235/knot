@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.auth.deps import current_user
 from app.memory import inspector
@@ -14,17 +14,23 @@ async def overview(x_user: str = Depends(current_user)) -> dict:
 
 
 @router.get("/semantic")
-async def semantic(limit: int = 50, x_user: str = Depends(current_user)) -> dict:
+async def semantic(
+    limit: int = Query(default=50, ge=1, le=200), x_user: str = Depends(current_user)
+) -> dict:
     return {"facts": await inspector.semantic_facts(x_user, limit)}
 
 
 @router.get("/episodic")
-async def episodic(limit: int = 50, x_user: str = Depends(current_user)) -> dict:
+async def episodic(
+    limit: int = Query(default=50, ge=1, le=200), x_user: str = Depends(current_user)
+) -> dict:
     return {"events": await inspector.episodic_events(x_user, limit)}
 
 
 @router.get("/procedural")
-async def procedural(limit: int = 50, x_user: str = Depends(current_user)) -> dict:
+async def procedural(
+    limit: int = Query(default=50, ge=1, le=200), x_user: str = Depends(current_user)
+) -> dict:
     return {"rules": await inspector.procedural_rules(x_user, limit)}
 
 
@@ -34,5 +40,7 @@ async def trace(session_id: UUID, x_user: str = Depends(current_user)) -> dict:
 
 
 @router.get("/actions")
-async def actions(limit: int = 50, x_user: str = Depends(current_user)) -> dict:
+async def actions(
+    limit: int = Query(default=50, ge=1, le=200), x_user: str = Depends(current_user)
+) -> dict:
     return {"actions": await inspector.recent_actions(x_user, limit)}

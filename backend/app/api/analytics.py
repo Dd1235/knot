@@ -16,10 +16,18 @@ CSV_COLUMNS = [
 ]
 
 
+# Excel/Sheets also treat tab and CR as cell-starting characters, and strip
+# leading whitespace before evaluating — so "\t=cmd|..." executes unless the
+# value is stripped BEFORE the test.
+DANGEROUS_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
+
+
 def defuse_formula(value: str) -> str:
-    """Neutralize spreadsheet formula injection: a cell starting with = + - @
-    would execute as a formula in Excel/Sheets, so prefix it with a quote."""
-    return f"'{value}" if value[:1] in ("=", "+", "-", "@") else value
+    """Neutralize spreadsheet formula injection by quoting the cell."""
+    stripped = value.lstrip(" \t\r\n")
+    if value[:1] in DANGEROUS_PREFIXES or stripped[:1] in DANGEROUS_PREFIXES:
+        return f"'{value}"
+    return value
 
 
 @router.get("/summary")
