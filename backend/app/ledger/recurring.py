@@ -123,6 +123,47 @@ async def deactivate(user_handle: str, name: str) -> dict | None:
     return await run_serializable(_fn)
 
 
+def _periods_due(
+    cadence: str,
+    due_day: int | None,
+    created_at: datetime,
+    today: date,
+    last_posted: str,
+) -> list[str]:
+    """Every period from the one after `last_posted` through today.
+
+    Posting only the current period silently dropped months for anyone who
+    didn't open the app — the tool promises the commitment posts each period.
+    """
+    current = _current_period(cadence, due_day, created_at, today)
+    if current is None:
+        return []
+    if not last_posted:
+        return [current]
+    if last_posted >= current:
+        return []
+
+    periods: list[str] = []
+    if cadence == "monthly":
+        year, month = (int(p) for p in last_posted.split("-"))
+        while True:
+            month += 1
+            if month > 12:
+                month, year = 1, year + 1
+            key = f"{year:04d}-{month:02d}"
+            if key > current:
+                break
+            periods.append(key)
+            if key == current:
+                break
+    else:
+        for year in range(int(last_posted) + 1, int(current) + 1):
+            periods.append(f"{year:04d}")
+    # Cap the catch-up so a long-dormant account cannot post a hundred entries
+    # in one request; the most recent periods are the ones that matter.
+    return periods[-12:]
+
+
 def _current_period(
     cadence: str, due_day: int | None, created_at: datetime, today: date
 ) -> str | None:
@@ -139,6 +180,17 @@ def _current_period(
     if (today.month, today.day) >= (anniversary.month, anniversary.day):
         return f"{today.year:04d}"
     return None
+
+
+def _period_start(cadence: str, period: str, due_day: int | None) -> datetime:
+    """Date the entry belongs on, so back-filled periods land in their own
+    analytics window rather than all piling onto today."""
+    if cadence == "monthly":
+        year, month = (int(p) for p in period.split("-"))
+        day = min(due_day or 1, monthrange(year, month)[1])
+    else:
+        year, month, day = int(period), 1, 1
+    return datetime(year, month, day, 12, 0, tzinfo=IST)
 
 
 async def post_due(user_handle: str) -> list[str]:
@@ -162,8 +214,10 @@ async def post_due(user_handle: str) -> list[str]:
         today = datetime.now(IST).date()
         posted: list[str] = []
         for c in commitments:
-            period = _current_period(c["cadence"], c["due_day"], c["created_at"], today)
-            if period is None or c["last_posted_period"] == period:
+            periods = _periods_due(
+                c["cadence"], c["due_day"], c["created_at"], today, c["last_posted_period"]
+            )
+            if not periods:
                 continue
             amount = c["amount"]
             if c["direction"] == "received":
@@ -176,17 +230,19 @@ async def post_due(user_handle: str) -> list[str]:
                     LegSpec(f"expense:{c['category']}", amount),
                     LegSpec("cash", -amount),
                 ]
-            await service._post_in_conn(
-                conn,
-                user_id,
-                f"{c['name']} (auto)",
-                legs,
-                source="system",
-                category=c["category"],
-            )
+            for period in periods:
+                await service._post_in_conn(
+                    conn,
+                    user_id,
+                    f"{c['name']} (auto, {period})",
+                    legs,
+                    source="system",
+                    category=c["category"],
+                    occurred_at=_period_start(c["cadence"], period, c["due_day"]),
+                )
             await conn.execute(
                 "UPDATE recurring_commitments SET last_posted_period = %s WHERE id = %s",
-                (period, c["id"]),
+                (periods[-1], c["id"]),
             )
             posted.append(c["name"])
         return posted
