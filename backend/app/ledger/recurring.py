@@ -8,7 +8,7 @@ period and skips.
 """
 
 from calendar import monthrange
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -248,3 +248,61 @@ async def post_due(user_handle: str) -> list[str]:
         return posted
 
     return await run_serializable(_fn)
+
+
+def _next_occurrence(cadence: str, due_day: int | None, today: date) -> date:
+    """The next date this commitment falls due, on or after today."""
+    if cadence == "yearly":
+        return date(today.year + 1, 1, 1)
+    day = due_day or 1
+    this_month = min(day, monthrange(today.year, today.month)[1])
+    if this_month >= today.day:
+        return date(today.year, today.month, this_month)
+    year, month = (today.year + 1, 1) if today.month == 12 else (today.year, today.month + 1)
+    return date(year, month, min(day, monthrange(year, month)[1]))
+
+
+async def upcoming(user_handle: str, horizon_days: int = 45) -> dict:
+    """Commitments falling due soon, and when money next arrives.
+
+    `safe_to_spend` needs both halves: what is already claimed, and the date
+    after which it stops mattering.
+    """
+    listed = await list_commitments(user_handle)
+    today = datetime.now(IST).date()
+    horizon = today + timedelta(days=horizon_days)
+
+    outgoing, incoming = [], []
+    for c in listed["commitments"]:
+        if not c["active"]:
+            continue
+        due = _next_occurrence(c["cadence"], c["due_day"], today)
+        if due > horizon:
+            continue
+        entry = {
+            "name": c["name"],
+            "amount": c["amount"],
+            "category": c["category"],
+            "due_on": due.isoformat(),
+            "in_days": (due - today).days,
+        }
+        (incoming if c["direction"] == "received" else outgoing).append(entry)
+
+    outgoing.sort(key=lambda e: e["due_on"])
+    incoming.sort(key=lambda e: e["due_on"])
+    next_income = incoming[0] if incoming else None
+    # Only commitments landing BEFORE the next payday actually constrain today.
+    claimed = sum(
+        (
+            Decimal(e["amount"])
+            for e in outgoing
+            if next_income is None or e["due_on"] <= next_income["due_on"]
+        ),
+        Decimal("0"),
+    )
+    return {
+        "outgoing": outgoing,
+        "incoming": incoming,
+        "next_income": next_income,
+        "claimed_before_income": str(claimed.quantize(TWO_PLACES)),
+    }

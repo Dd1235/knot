@@ -201,3 +201,203 @@ async def export_rows(user_handle: str, days: int) -> list[dict]:
         )
         cur.row_factory = dict_row
         return await cur.fetchall()
+
+
+async def rhythm(user_handle: str, days: int = 30) -> dict:
+    """How the user actually transacts, counted rather than summed.
+
+    76% of UPI transactions are under ₹500 but carry ~7.5% of value, so a
+    dashboard that ranks by rupees hides the chai, autos and food orders that
+    ARE the user's daily life. Everything here is ordered by COUNT.
+    """
+    start, end, start_day = _window_bounds(days, 0)
+
+    async with pool().connection() as conn:
+        cur = await conn.execute(
+            """
+            SELECT lower(t.description) AS merchant,
+                   count(*) AS times,
+                   SUM((SELECT COALESCE(SUM(l.amount) FILTER (WHERE l.amount > 0), 0)
+                        FROM transaction_legs AS l
+                        WHERE l.transaction_id = t.id))::STRING AS amount,
+                   COALESCE(cg.grp, 'other') AS grp
+            FROM transactions AS t
+            JOIN users AS u ON u.id = t.user_id
+            LEFT JOIN category_groups AS cg ON cg.category = t.category
+            WHERE u.handle = %s AND t.occurred_at >= %s AND t.occurred_at < %s
+              AND t.metadata->>'voids' IS NULL
+              AND EXISTS (SELECT 1 FROM transaction_legs AS l
+                          JOIN accounts AS a ON a.id = l.account_id
+                          WHERE l.transaction_id = t.id AND a.type = 'expense')
+            GROUP BY lower(t.description), cg.grp
+            ORDER BY times DESC, amount DESC
+            LIMIT 8
+            """,
+            (user_handle, start, end),
+        )
+        cur.row_factory = dict_row
+        merchants = await cur.fetchall()
+
+        # Day-of-week rhythm: the median is the honest "typical", since one
+        # rent payment would drag a mean into uselessness.
+        cur = await conn.execute(
+            """
+            SELECT extract(dow FROM day)::INT AS dow,
+                   count(*) AS days_seen,
+                   -- percentile_cont needs FLOAT in CockroachDB; quantized back below.
+                   percentile_cont(0.5) WITHIN GROUP (ORDER BY spend::FLOAT) AS typical
+            FROM (
+                SELECT ((t.occurred_at AT TIME ZONE 'Asia/Kolkata')::DATE) AS day,
+                       COALESCE(SUM(l.amount) FILTER (WHERE a.type = 'expense'), 0) AS spend
+                FROM transaction_legs AS l
+                JOIN accounts AS a ON a.id = l.account_id
+                JOIN transactions AS t ON t.id = l.transaction_id
+                JOIN users AS u ON u.id = t.user_id
+                WHERE u.handle = %s AND t.occurred_at >= %s AND t.occurred_at < %s
+                GROUP BY day
+            )
+            GROUP BY dow
+            ORDER BY dow
+            """,
+            (user_handle, start, end),
+        )
+        cur.row_factory = dict_row
+        by_dow = await cur.fetchall()
+
+        cur = await conn.execute(
+            """
+            SELECT count(*) AS txns,
+                   count(DISTINCT (t.occurred_at AT TIME ZONE 'Asia/Kolkata')::DATE) AS active_days
+            FROM transactions AS t
+            JOIN users AS u ON u.id = t.user_id
+            WHERE u.handle = %s AND t.occurred_at >= %s AND t.occurred_at < %s
+              AND t.metadata->>'voids' IS NULL
+            """,
+            (user_handle, start, end),
+        )
+        txns, active_days = await cur.fetchone()
+
+    return {
+        "window_days": days,
+        "transactions": txns,
+        "active_days": active_days,
+        "per_active_day": round(txns / active_days, 1) if active_days else 0.0,
+        "no_spend_days": days - active_days,
+        "top_merchants": [
+            {
+                "merchant": m["merchant"],
+                "times": m["times"],
+                "amount": _money(m["amount"]),
+                "grp": m["grp"],
+            }
+            for m in merchants
+        ],
+        "by_weekday": [
+            {"dow": r["dow"], "days_seen": r["days_seen"], "typical": _money(r["typical"])}
+            for r in by_dow
+        ],
+    }
+
+
+async def cash_float(user_handle: str) -> dict:
+    """Physical cash withdrawn versus cash since accounted for.
+
+    A withdrawal is specifically a transfer from another asset account into
+    `cash` — money credited to cash from income is not cash-in-hand, and
+    counting it would make the whole figure meaningless.
+
+    Every SMS-parsing app is blind here by construction: the withdrawal is one
+    line and the spending that follows is invisible. Voice is the only
+    low-friction way to close the loop, which is why this is worth building.
+    """
+    async with pool().connection() as conn:
+        cur = await conn.execute(
+            """
+            WITH withdrawals AS (
+                SELECT t.id, t.occurred_at,
+                       (SELECT l.amount FROM transaction_legs AS l
+                        JOIN accounts AS a ON a.id = l.account_id
+                        WHERE l.transaction_id = t.id AND a.name = 'cash') AS amount
+                FROM transactions AS t
+                JOIN users AS u ON u.id = t.user_id
+                WHERE u.handle = %s
+                  AND t.metadata->>'voids' IS NULL
+                  -- credits cash...
+                  AND EXISTS (SELECT 1 FROM transaction_legs AS l
+                              JOIN accounts AS a ON a.id = l.account_id
+                              WHERE l.transaction_id = t.id
+                                AND a.name = 'cash' AND l.amount > 0)
+                  -- ...and debits a DIFFERENT asset account: a real transfer
+                  AND EXISTS (SELECT 1 FROM transaction_legs AS l
+                              JOIN accounts AS a ON a.id = l.account_id
+                              WHERE l.transaction_id = t.id
+                                AND a.type = 'asset' AND a.name != 'cash' AND l.amount < 0)
+            )
+            SELECT COALESCE(SUM(amount), 0)::STRING AS withdrawn,
+                   MAX(occurred_at) AS last_withdrawal,
+                   (SELECT COALESCE(-SUM(l.amount), 0)
+                    FROM transaction_legs AS l
+                    JOIN accounts AS a ON a.id = l.account_id
+                    JOIN transactions AS t ON t.id = l.transaction_id
+                    JOIN users AS u ON u.id = t.user_id
+                    WHERE u.handle = %s AND a.name = 'cash' AND l.amount < 0
+                      AND t.metadata->>'voids' IS NULL
+                      AND t.occurred_at >= (SELECT MIN(occurred_at) FROM withdrawals)
+                   )::STRING AS spent_since
+            FROM withdrawals
+            """,
+            (user_handle, user_handle),
+        )
+        withdrawn, last, spent_since = await cur.fetchone()
+
+    withdrawn_d = Decimal(withdrawn)
+    accounted = Decimal(spent_since or 0)
+    unaccounted = max(withdrawn_d - accounted, Decimal("0"))
+    return {
+        "withdrawn": _money(withdrawn_d),
+        "accounted": _money(accounted),
+        "unaccounted": _money(unaccounted),
+        "last_withdrawal": last.isoformat() if last else None,
+    }
+
+
+async def safe_to_spend(user_handle: str) -> dict:
+    """Spendable money left once everything already claimed is set aside.
+
+    The only forward-looking number on the dashboard — every other module is
+    an autopsy. Deliberately derived rather than a budget the user sets:
+    budgeting apps lose ~67% of users inside 30 days, and this asks nothing.
+    """
+    from app.ledger import recurring
+
+    async with pool().connection() as conn:
+        cur = await conn.execute(
+            """
+            SELECT COALESCE(SUM(l.amount), 0)::STRING
+            FROM transaction_legs AS l
+            JOIN accounts AS a ON a.id = l.account_id
+            JOIN users AS u ON u.id = a.user_id
+            WHERE u.handle = %s AND a.type = 'asset'
+            """,
+            (user_handle,),
+        )
+        liquid = Decimal((await cur.fetchone())[0])
+
+    ahead = await recurring.upcoming(user_handle)
+    claimed = Decimal(ahead["claimed_before_income"])
+    next_income = ahead["next_income"]
+    available = liquid - claimed
+
+    return {
+        "liquid": _money(liquid),
+        "claimed": _money(claimed),
+        "available": _money(available),
+        "next_income": next_income,
+        "days_until_income": next_income["in_days"] if next_income else None,
+        "per_day": (
+            _money(available / next_income["in_days"])
+            if next_income and next_income["in_days"] > 0 and available > 0
+            else None
+        ),
+        "upcoming": ahead["outgoing"][:5],
+    }
