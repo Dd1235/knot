@@ -38,6 +38,10 @@ stop() {
     if [ -n "$pids" ]; then
       echo "stopping listener on :$port (pid $pids)"
       kill $pids 2>/dev/null || true
+      for _ in $(seq 1 20); do
+        [ -z "$(listener "$port")" ] && break
+        sleep 0.25
+      done
     else
       echo "nothing listening on :$port"
     fi
