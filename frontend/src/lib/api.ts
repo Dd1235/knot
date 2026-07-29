@@ -411,3 +411,14 @@ export const generateInsights = (days: number, refresh = false) =>
 export function authHeadersForRealtime(): Record<string, string> {
   return { "X-User": getUserHandle(), ...authHeaders() };
 }
+
+export interface StackFacts {
+  version: string;
+  vector_indexes: { table: string; index: string; columns: string[] }[];
+  ttl: { table: string; expire_after: string }[];
+  memory_counts: Record<string, number>;
+  legs: number;
+  ledger_sum: string;
+}
+
+export const getStack = () => api<StackFacts>("/architecture/stack");

@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.analytics import router as analytics_router
+from app.api.architecture import router as architecture_router
 from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
 from app.api.demo import router as demo_router
@@ -40,6 +41,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(ledger_router)
 app.include_router(analytics_router)
+app.include_router(architecture_router)
 app.include_router(chat_router)
 app.include_router(memory_router)
 app.include_router(demo_router)

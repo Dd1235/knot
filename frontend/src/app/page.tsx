@@ -108,9 +108,12 @@ export default function LandingPage() {
             One CockroachDB cluster holds the ledger and four memory stores —
             serializable money, vector recall, same transaction.
           </p>
-          <div className="mt-8">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link href="/login" className={buttonClass("primary", "md")}>
               Start talking
+            </Link>
+            <Link href="/architecture" className={buttonClass("ghost", "md")}>
+              See how it works
             </Link>
           </div>
         </section>

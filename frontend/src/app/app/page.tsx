@@ -249,6 +249,9 @@ export default function ChatPage() {
             <Link href="/memory" aria-label="Memory inspector" className={buttonClass()}>
               memory
             </Link>
+            <Link href="/architecture" aria-label="How it works" className={buttonClass()}>
+              how it works
+            </Link>
             <Link href="/insights" aria-label="Spending insights" className={buttonClass()}>
               insights
             </Link>
