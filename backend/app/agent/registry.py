@@ -1,11 +1,15 @@
 """Tool registry shared by every agent surface (text now, voice later)."""
 
+import json
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
+from app.db.pool import pool
 from app.ledger.service import LedgerError
 from app.llm.provider import ToolCall
+from app.tasks import fire_and_forget
 
 log = logging.getLogger(__name__)
 
@@ -42,16 +46,43 @@ def specs() -> list[dict]:
     ]
 
 
+async def _log_action(
+    session_id: str, tool: str, args: dict, result: dict, latency_ms: int
+) -> None:
+    async with pool().connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO agent_actions (session_id, tool, args, result_summary, error, latency_ms)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (
+                session_id,
+                tool,
+                json.dumps(args, default=str),
+                json.dumps(result, default=str)[:400],
+                result.get("error"),
+                latency_ms,
+            ),
+        )
+
+
 async def dispatch(ctx: ToolContext, call: ToolCall) -> dict:
     tool = _REGISTRY.get(call.name)
     if tool is None:
         return {"error": f"unknown tool: {call.name}"}
+    start = time.perf_counter()
     try:
-        return await tool.handler(ctx, call.arguments)
+        result = await tool.handler(ctx, call.arguments)
     except LedgerError as exc:
         # Domain errors go back to the model verbatim so it can explain or
         # ask a clarifying question.
-        return {"error": str(exc)}
+        result = {"error": str(exc)}
     except Exception:
         log.exception("tool %s failed", call.name)
-        return {"error": "internal error executing tool"}
+        result = {"error": "internal error executing tool"}
+    latency_ms = int((time.perf_counter() - start) * 1000)
+    fire_and_forget(
+        _log_action(ctx.session_id, call.name, call.arguments, result, latency_ms),
+        "agent-action-log",
+    )
+    return result
