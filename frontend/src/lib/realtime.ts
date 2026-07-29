@@ -54,13 +54,19 @@ export class RealtimeSession {
     return true;
   }
 
-  async start(authHeaders: Record<string, string>): Promise<void> {
+  async start(
+    authHeaders: Record<string, string>,
+    resumeSessionId?: string | null,
+  ): Promise<void> {
     this.handlers.onState("connecting");
 
     const res = await fetch(`${API_BASE}/voice/session`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json", ...authHeaders },
+      // Continue the conversation already in progress rather than starting a
+      // parallel one the history page would show as a separate session.
+      body: JSON.stringify({ session_id: resumeSessionId ?? null }),
     });
     if (this.aborted()) return;
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? "session failed");

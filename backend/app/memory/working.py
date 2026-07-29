@@ -17,26 +17,81 @@ from app.ledger.service import ensure_user
 HISTORY_WINDOW = 20
 
 
-async def get_or_create_session(user_handle: str, session_id: UUID | None) -> UUID:
+async def get_or_create_session(
+    user_handle: str, session_id: UUID | None, channel: str = "text"
+) -> UUID:
+    """Resume a session if it exists, otherwise start one.
+
+    `channel` records how the conversation is happening. A session that is both
+    spoken and typed becomes 'mixed' rather than flipping between the two —
+    continuing a voice conversation in text is the reason both live in one
+    table, so the history page should say so rather than pick a side.
+    """
+
     async def _fn(conn: AsyncConnection) -> UUID:
         user_id = await ensure_user(conn, user_handle)
         if session_id is not None:
             cur = await conn.execute(
-                "SELECT id FROM sessions WHERE id = %s AND user_id = %s",
+                "SELECT id, channel FROM sessions WHERE id = %s AND user_id = %s",
                 (session_id, user_id),
             )
-            if await cur.fetchone():
+            row = await cur.fetchone()
+            if row:
+                merged = "mixed" if row[1] not in (channel, "mixed") else row[1]
                 await conn.execute(
-                    "UPDATE sessions SET last_active_at = now() WHERE id = %s",
-                    (session_id,),
+                    "UPDATE sessions SET last_active_at = now(), channel = %s WHERE id = %s",
+                    (merged, session_id),
                 )
                 return session_id
         cur = await conn.execute(
-            "INSERT INTO sessions (user_id) VALUES (%s) RETURNING id", (user_id,)
+            "INSERT INTO sessions (user_id, channel) VALUES (%s, %s) RETURNING id",
+            (user_id, channel),
         )
         return (await cur.fetchone())[0]
 
     return await run_serializable(_fn)
+
+
+async def list_sessions(user_handle: str, limit: int = 30) -> list[dict]:
+    """Conversations, newest first, with enough to render a list row.
+
+    The title is the user's first message: it is what they actually came to do,
+    and it beats a generated summary that has to be kept fresh.
+    """
+    async with pool().connection() as conn:
+        cur = await conn.execute(
+            """
+            SELECT s.id::STRING AS id,
+                   s.started_at, s.last_active_at, s.channel,
+                   COALESCE(s.running_summary, '') AS summary,
+                   (SELECT count(*) FROM conversation_turns AS t
+                    WHERE t.session_id = s.id) AS turns,
+                   (SELECT t.content FROM conversation_turns AS t
+                    WHERE t.session_id = s.id AND t.role = 'user'
+                    ORDER BY t.seq LIMIT 1) AS opened_with
+            FROM sessions AS s
+            JOIN users AS u ON u.id = s.user_id
+            WHERE u.handle = %s
+            ORDER BY s.last_active_at DESC
+            LIMIT %s
+            """,
+            (user_handle, limit),
+        )
+        cur.row_factory = dict_row
+        rows = await cur.fetchall()
+    return [
+        {
+            "id": r["id"],
+            "started_at": r["started_at"].isoformat(),
+            "last_active_at": r["last_active_at"].isoformat(),
+            "channel": r["channel"],
+            "turns": r["turns"],
+            # Raw turns TTL away after 30 days, so an old session legitimately
+            # has none left. Say that rather than showing an empty row.
+            "title": (r["opened_with"] or r["summary"] or "").strip(),
+        }
+        for r in rows
+    ]
 
 
 async def append_turn(

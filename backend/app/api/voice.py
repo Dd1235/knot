@@ -76,14 +76,27 @@ async def _standing_context(user_handle: str) -> str:
     )
 
 
+class SessionIn(BaseModel):
+    """The caller passes the session it is already in, if any."""
+
+    session_id: UUID | None = None
+
+
 @router.post("/session")
-async def create_session(x_user: str = Depends(current_user)) -> dict:
+async def create_session(
+    body: SessionIn | None = None, x_user: str = Depends(current_user)
+) -> dict:
     """Mint a short-lived client secret the browser uses to reach OpenAI."""
     settings = get_settings()
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="realtime voice is not configured")
 
-    session_id = await working.get_or_create_session(x_user, None)
+    # Passing None here always minted a fresh row, so a voice conversation
+    # never continued the text one — despite the turn-persistence docstring
+    # promising exactly that. The browser now passes the session it is in.
+    session_id = await working.get_or_create_session(
+        x_user, body.session_id if body else None, channel="voice"
+    )
     instructions = _system_prompt() + VOICE_STYLE + await _standing_context(x_user)
 
     payload = {

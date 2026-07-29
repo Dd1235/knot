@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from app.auth.deps import current_user
-from app.memory import inspector
+from app.memory import inspector, working
 
 router = APIRouter(prefix="/memory", tags=["memory"])
 
@@ -32,6 +32,13 @@ async def procedural(
     limit: int = Query(default=50, ge=1, le=200), x_user: str = Depends(current_user)
 ) -> dict:
     return {"rules": await inspector.procedural_rules(x_user, limit)}
+
+
+@router.get("/sessions")
+async def sessions(
+    limit: int = Query(default=30, ge=1, le=100), x_user: str = Depends(current_user)
+) -> dict:
+    return {"sessions": await working.list_sessions(x_user, limit)}
 
 
 @router.get("/sessions/{session_id}/trace")

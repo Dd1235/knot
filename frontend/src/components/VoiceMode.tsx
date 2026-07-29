@@ -135,7 +135,7 @@ export default function VoiceMode({
     });
     realtimeRef.current = session;
 
-    session.start(authHeadersForRealtime()).catch(() => {
+    session.start(authHeadersForRealtime(), localStorage.getItem("ledger:session")).catch(() => {
       // Without this stop() a failed connect left its peer connection and
       // microphone open while the Web Speech loop started on top of them.
       session.stop();

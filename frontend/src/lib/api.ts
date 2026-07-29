@@ -422,3 +422,27 @@ export interface StackFacts {
 }
 
 export const getStack = () => api<StackFacts>("/architecture/stack");
+
+export interface SessionSummary {
+  id: string;
+  started_at: string;
+  last_active_at: string;
+  channel: string;
+  turns: number;
+  title: string;
+}
+
+export const getSessions = (limit = 30) =>
+  api<{ sessions: SessionSummary[] }>(`/memory/sessions?limit=${limit}`);
+
+export interface TraceTurn {
+  seq: number;
+  role: string;
+  content: string;
+  tool_calls: ToolEvent[] | null;
+  context_trace: ContextTrace | null;
+  created_at: string;
+}
+
+export const getSessionTrace = (id: string) =>
+  api<{ turns: TraceTurn[] }>(`/memory/sessions/${id}/trace`);
