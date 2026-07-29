@@ -19,6 +19,7 @@ _hits: dict[tuple[str, str], list[float]] = {}
 METERED_PATHS = frozenset({
     "/chat", "/chat/stream", "/demo/race", "/insights/generate",
     "/auth/login", "/auth/signup", "/analytics/export.csv",
+    "/voice/session",
 })
 
 OPEN_PATHS = {"/healthz"}

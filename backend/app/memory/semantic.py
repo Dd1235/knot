@@ -112,3 +112,20 @@ async def search(
         row["last_reinforced_at"] = row["last_reinforced_at"].isoformat()
     rows.sort(key=lambda r: r["score"], reverse=True)
     return rows[:k]
+
+
+async def top_facts(user_handle: str, limit: int = 8) -> list[str]:
+    """Best-supported current facts, for contexts with no query to match on."""
+    async with pool().connection() as conn:
+        cur = await conn.execute(
+            """
+            SELECT f.fact
+            FROM semantic_facts AS f
+            JOIN users AS u ON u.id = f.user_id
+            WHERE u.handle = %s AND f.superseded_by IS NULL
+            ORDER BY f.confidence * f.evidence_count::FLOAT DESC, f.last_reinforced_at DESC
+            LIMIT %s
+            """,
+            (user_handle, limit),
+        )
+        return [row[0] for row in await cur.fetchall()]

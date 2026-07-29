@@ -11,6 +11,7 @@ from app.api.demo import router as demo_router
 from app.api.insights import router as insights_router
 from app.api.ledger import router as ledger_router
 from app.api.memory import router as memory_router
+from app.api.voice import router as voice_router
 from app.config import get_settings, validate_settings
 from app.db.pool import close_pool, open_pool, pool
 from app.obs.logging import configure_logging
@@ -43,6 +44,7 @@ app.include_router(chat_router)
 app.include_router(memory_router)
 app.include_router(demo_router)
 app.include_router(insights_router)
+app.include_router(voice_router)
 
 
 @app.get("/healthz")

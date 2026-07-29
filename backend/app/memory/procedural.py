@@ -100,3 +100,20 @@ async def record_usage(rule_ids: list[str]) -> None:
             "UPDATE procedural_rules SET usage_count = usage_count + 1 WHERE id = ANY(%s)",
             (rule_ids,),
         )
+
+
+async def recent_rules(user_handle: str, limit: int = 8) -> list[str]:
+    """Active rule instructions, most-used first — always-relevant context."""
+    async with pool().connection() as conn:
+        cur = await conn.execute(
+            """
+            SELECT r.rule->>'instruction' AS instruction
+            FROM procedural_rules AS r
+            JOIN users AS u ON u.id = r.user_id
+            WHERE u.handle = %s AND r.active
+            ORDER BY r.usage_count DESC, r.created_at DESC
+            LIMIT %s
+            """,
+            (user_handle, limit),
+        )
+        return [row[0] for row in await cur.fetchall() if row[0]]
