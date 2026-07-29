@@ -3,9 +3,10 @@
 import csv
 import io
 
-from fastapi import APIRouter, Header, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
+from app.auth.deps import current_user
 from app.ledger import analytics
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -24,7 +25,7 @@ def defuse_formula(value: str) -> str:
 @router.get("/summary")
 async def summary(
     days: int = Query(default=30, ge=1, le=365),
-    x_user: str = Header(default="demo"),
+    x_user: str = Depends(current_user),
 ) -> dict:
     return await analytics.summary(x_user, days)
 
@@ -32,7 +33,7 @@ async def summary(
 @router.get("/export.csv")
 async def export_csv(
     days: int = Query(default=90, ge=1, le=365),
-    x_user: str = Header(default="demo"),
+    x_user: str = Depends(current_user),
 ) -> StreamingResponse:
     rows = await analytics.export_rows(x_user, days)
     buf = io.StringIO()

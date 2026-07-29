@@ -6,8 +6,6 @@ import time
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from app.config import get_settings
-
 log = logging.getLogger("ledger.request")
 
 # Sliding-window rate limit for expensive endpoints (LLM-backed).
@@ -33,14 +31,10 @@ async def guard(request: Request, call_next):
     start = time.perf_counter()
     path = request.url.path
 
-    if path not in OPEN_PATHS and request.method != "OPTIONS":
-        passcode = get_settings().app_passcode
-        if passcode:
-            supplied = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
-            if supplied != passcode:
-                return JSONResponse({"detail": "passcode required"}, status_code=401)
-
-        if request.method == "POST" and path in ("/chat", "/demo/race"):
+    # Identity/authorization is enforced per-route by app.auth.deps.current_user;
+    # this layer only rate-limits the expensive (LLM-backed) endpoints.
+    if path not in OPEN_PATHS and request.method == "POST":
+        if path in ("/chat", "/chat/stream", "/demo/race", "/auth/login", "/auth/signup"):
             ip = request.client.host if request.client else "unknown"
             if _rate_limited(ip):
                 return JSONResponse({"detail": "rate limit exceeded"}, status_code=429)

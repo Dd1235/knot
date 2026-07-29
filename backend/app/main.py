@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.analytics import router as analytics_router
+from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
 from app.api.demo import router as demo_router
 from app.api.ledger import router as ledger_router
@@ -29,9 +30,11 @@ app.middleware("http")(guard)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_origins.split(","),
+    allow_credentials=True,  # session cookie
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(auth_router)
 app.include_router(ledger_router)
 app.include_router(analytics_router)
 app.include_router(chat_router)

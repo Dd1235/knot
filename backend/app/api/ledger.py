@@ -1,9 +1,10 @@
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.auth.deps import current_user
 from app.ledger import recurring, service
 from app.ledger.service import (
     LegSpec,
@@ -48,7 +49,7 @@ def _txn_response(posted: service.PostedTransaction) -> dict:
 
 @router.post("/transactions", status_code=201)
 async def create_transaction(
-    body: TransactionIn, x_user: str = Header(default="demo")
+    body: TransactionIn, x_user: str = Depends(current_user)
 ) -> dict:
     try:
         posted = await service.post_transaction(
@@ -66,7 +67,7 @@ async def create_transaction(
 
 
 @router.post("/settle", status_code=201)
-async def settle(body: SettleIn, x_user: str = Header(default="demo")) -> dict:
+async def settle(body: SettleIn, x_user: str = Depends(current_user)) -> dict:
     try:
         posted = await service.settle_up(
             x_user, body.person, body.amount, idempotency_key=body.idempotency_key
@@ -82,7 +83,7 @@ class VoidIn(BaseModel):
 
 @router.post("/transactions/{transaction_id}/void", status_code=201)
 async def void_transaction(
-    transaction_id: str, body: VoidIn, x_user: str = Header(default="demo")
+    transaction_id: str, body: VoidIn, x_user: str = Depends(current_user)
 ) -> dict:
     try:
         posted = await service.void_transaction(x_user, transaction_id, body.reason)
@@ -92,7 +93,7 @@ async def void_transaction(
 
 
 @router.get("/balances")
-async def balances(x_user: str = Header(default="demo")) -> dict:
+async def balances(x_user: str = Depends(current_user)) -> dict:
     return {
         "accounts": await service.account_balances(x_user),
         "people": await service.person_balances(x_user),
@@ -102,11 +103,11 @@ async def balances(x_user: str = Header(default="demo")) -> dict:
 
 @router.get("/transactions")
 async def list_transactions(
-    limit: int = 20, x_user: str = Header(default="demo")
+    limit: int = 20, x_user: str = Depends(current_user)
 ) -> dict:
     return {"transactions": await service.recent_transactions(x_user, limit)}
 
 
 @router.get("/recurring")
-async def list_recurring(x_user: str = Header(default="demo")) -> dict:
+async def list_recurring(x_user: str = Depends(current_user)) -> dict:
     return await recurring.list_commitments(x_user)

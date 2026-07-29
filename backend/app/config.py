@@ -15,8 +15,15 @@ class Settings(BaseSettings):
 
     database_url: str
     cors_origins: str = "http://localhost:3000"
-    # When set, every request (except /healthz) needs Authorization: Bearer <passcode>.
-    app_passcode: str = ""
+
+    # Auth: signed session cookies. auth_required=True (production) makes the
+    # acting user come only from a verified token, never a request header.
+    auth_required: bool = False
+    session_secret: str = "dev-only-insecure-secret-change-in-production"
+    cookie_secure: bool = False
+
+    # S3 bucket for CSV exports (empty = stream the file inline instead).
+    export_bucket: str = ""
 
     # Provider selection: "openai" (free dev mode) or "bedrock" (AWS-judged mode).
     llm_provider: str = "openai"
