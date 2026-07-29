@@ -2,11 +2,19 @@
 
 import logging
 import time
+from functools import lru_cache
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from app.config import get_settings
+
 log = logging.getLogger("ledger.request")
+
+
+@lru_cache
+def _allowed_origins() -> frozenset[str]:
+    return frozenset(o.strip() for o in get_settings().cors_origins.split(",") if o.strip())
 
 # Sliding-window rate limit for expensive endpoints (LLM-backed).
 RATE_WINDOW_SECONDS = 60
@@ -55,6 +63,14 @@ async def guard(request: Request, call_next):
 
     # Identity/authorization is enforced per-route by app.auth.deps.current_user;
     # this layer only rate-limits the expensive (LLM-backed) endpoints.
+    # CSRF: SameSite=None is required for a cross-origin frontend, which
+    # removes the browser's own defence. State-changing requests must come
+    # from an allowed origin (a browser cannot forge Origin).
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        origin = request.headers.get("origin")
+        if origin and origin not in _allowed_origins():
+            return JSONResponse({"detail": "cross-origin request blocked"}, status_code=403)
+
     if path in METERED_PATHS and request.method != "OPTIONS":
         if _rate_limited((_caller(request), path)):
             return JSONResponse({"detail": "rate limit exceeded"}, status_code=429)
@@ -67,7 +83,10 @@ async def guard(request: Request, call_next):
             "path": path,
             "status": response.status_code,
             "duration_ms": int((time.perf_counter() - start) * 1000),
-            "user": request.headers.get("x-user"),
+            # The VERIFIED handle, never the client-supplied header — with auth
+            # on, X-User is ignored entirely and logging it would attribute
+            # every request to a value the caller made up.
+            "user": getattr(request.state, "handle", None),
         },
     )
     return response

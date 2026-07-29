@@ -29,9 +29,12 @@ async def current_user(request: Request) -> str:
     if token:
         handle = read_token(token)
         if handle:
+            request.state.handle = handle
             return handle
         if get_settings().auth_required:
             raise HTTPException(status_code=401, detail="session expired")
     if get_settings().auth_required:
         raise HTTPException(status_code=401, detail="sign in required")
-    return request.headers.get("x-user", "demo")
+    handle = request.headers.get("x-user", "demo")
+    request.state.handle = handle
+    return handle
