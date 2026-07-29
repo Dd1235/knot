@@ -100,13 +100,36 @@ export function speak(text: string, onEnd?: () => void) {
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "en-IN";
   utterance.rate = 1.05;
+
   if (onEnd) {
-    utterance.onend = onEnd;
-    utterance.onerror = onEnd;
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(watchdog);
+      clearInterval(keepAlive);
+      onEnd();
+    };
+    // Chrome quietly drops onend sometimes, and pauses long utterances;
+    // a duration-estimate watchdog + resume keep-alive make the loop unstickable.
+    const estimatedMs = Math.min(30000, 350 * text.split(/\s+/).length + 3000);
+    const watchdog = setTimeout(finish, estimatedMs);
+    const keepAlive = setInterval(() => window.speechSynthesis.resume(), 5000);
+    utterance.onend = finish;
+    utterance.onerror = finish;
   }
   window.speechSynthesis.speak(utterance);
 }
 
 export function stopSpeaking() {
   if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+}
+
+/** Must be called from a user-gesture handler: unlocks TTS on mobile browsers
+ * so later programmatic speak() calls aren't silently dropped. */
+export function unlockSpeech() {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  const blank = new SpeechSynthesisUtterance(" ");
+  blank.volume = 0;
+  window.speechSynthesis.speak(blank);
 }

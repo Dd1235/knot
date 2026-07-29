@@ -112,13 +112,41 @@ export async function sendChatStream(
       const event = JSON.parse(line.slice(6));
       if (event.type === "delta") callbacks.onDelta(event.text);
       else if (event.type === "tool") callbacks.onTool(event.tool);
-      else if (event.type === "done") callbacks.onDone(event as ChatResponse);
+      else if (event.type === "done") {
+        callbacks.onDone(event as ChatResponse);
+        // Terminate immediately — don't depend on the server closing the pipe.
+        try {
+          await reader.cancel();
+        } catch {
+          /* already closed */
+        }
+        return;
+      }
     }
   }
 }
 
 export const getBalances = () =>
   api<{ people: PersonBalance[]; ledger_sum: string }>("/ledger/balances");
+
+export interface LedgerTransaction {
+  id: string;
+  occurred_at: string;
+  description: string;
+  category: string;
+  source: string;
+  amount: string;
+  voided: boolean;
+}
+
+export const listTransactions = (limit = 50) =>
+  api<{ transactions: LedgerTransaction[] }>(`/ledger/transactions?limit=${limit}`);
+
+export const voidTransaction = (id: string, reason: string) =>
+  api<{ id: string }>(`/ledger/transactions/${id}/void`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
 
 export const getMemoryOverview = () =>
   api<{

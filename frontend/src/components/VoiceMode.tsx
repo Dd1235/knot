@@ -38,7 +38,15 @@ export default function VoiceMode({
     onFinal: async (text) => {
       silentRoundsRef.current = 0;
       setState("thinking");
-      const answer = await onUtterance(text);
+      let answer: string | null = null;
+      try {
+        answer = await Promise.race([
+          onUtterance(text),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 45000)),
+        ]);
+      } catch {
+        answer = "Sorry, something went wrong — try again.";
+      }
       if (closedRef.current) return;
       setTranscript("");
       setReply(answer ?? "");
