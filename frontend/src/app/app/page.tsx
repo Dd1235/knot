@@ -19,6 +19,8 @@ import ThemeToggle from "@/components/ui/ThemeToggle";
 import Money from "@/components/ui/Money";
 import Pill from "@/components/ui/Pill";
 import { inputClass } from "@/components/ui/styles";
+import Icon from "@/components/ui/Icon";
+import { ChevronDown, ChevronUp, Mic, Square } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
@@ -99,7 +101,8 @@ function AssistantMeta({ message }: { message: Message }) {
             aria-expanded={open}
             className="rounded-full border border-brand-line bg-brand-soft px-2 py-0.5 text-[11px] text-brand-ink"
           >
-            {memories} {memories === 1 ? "memory" : "memories"} used {open ? "▴" : "▾"}
+            {memories} {memories === 1 ? "memory" : "memories"} used{" "}
+            <Icon as={open ? ChevronUp : ChevronDown} size={11} className="inline align-[-1px]" />
           </button>
         )}
       </div>
@@ -347,7 +350,7 @@ export default function ChatPage() {
               aria-label={mic.listening ? "Stop listening" : "Speak"}
               className={`rounded-full px-3.5 py-2.5 ${mic.listening ? "animate-pulse" : ""}`}
             >
-              {mic.listening ? "■" : "🎙"}
+              <Icon as={mic.listening ? Square : Mic} size={16} />
             </Button>
           )}
           <Button

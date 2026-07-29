@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import Icon from "./Icon";
 import type { ReactNode } from "react";
 import { buttonClass } from "./Button";
 
@@ -31,7 +33,8 @@ export default function AppHeader({
           {actions}
           {back && (
             <Link href={back} className={buttonClass("ghost", "sm")}>
-              ← chat
+              <Icon as={ArrowLeft} size={14} />
+          chat
             </Link>
           )}
         </div>

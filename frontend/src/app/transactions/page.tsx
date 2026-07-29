@@ -6,7 +6,8 @@ import AppHeader from "@/components/ui/AppHeader";
 import Button from "@/components/ui/Button";
 import Money from "@/components/ui/Money";
 import { GROUP_COLORS } from "@/lib/groups";
-import { glyphFor } from "@/lib/categoryGlyphs";
+import Icon from "@/components/ui/Icon";
+import { iconFor, initialFor } from "@/lib/categoryIcons";
 
 /* Every direction needs an entry. Anything missing fell through to `spent`,
  * which is how "borrowed 5,000 from Priya" came to display as money going out. */
@@ -178,7 +179,16 @@ export default function TransactionsPage() {
                           } 16%, transparent)`,
                         }}
                       >
-                        {glyphFor(t.category, t.description)}
+                        {(() => {
+                          const Glyph = iconFor(t.category);
+                          return Glyph ? (
+                            <Icon as={Glyph} size={minor ? 12 : 15} />
+                          ) : (
+                            <span className="font-medium">
+                              {initialFor(t.category, t.description)}
+                            </span>
+                          );
+                        })()}
                       </span>
 
                       <div className="min-w-0 flex-1">

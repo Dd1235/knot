@@ -10,6 +10,8 @@ import Money from "@/components/ui/Money";
 import SegmentedNav from "@/components/ui/SegmentedNav";
 import SpendHeatmap from "@/components/SpendHeatmap";
 import Stat from "@/components/ui/Stat";
+import Icon from "@/components/ui/Icon";
+import { Download, RefreshCw } from "lucide-react";
 import { GROUP_COLORS, GROUP_LABELS } from "@/lib/groups";
 import {
   AccountBalance,
@@ -374,7 +376,7 @@ export default function InsightsPage() {
             disabled={insightsBusy}
             aria-label="Regenerate insights"
           >
-            ↻
+            <Icon as={RefreshCw} size={13} className={insightsBusy ? "animate-spin" : ""} />
           </Button>
         </div>
         {insights === null || insightsBusy ? (
@@ -609,7 +611,10 @@ export default function InsightsPage() {
         disabled={exporting}
         className="w-full rounded-xl border border-line bg-surface-card py-3 text-sm text-ink-secondary active:bg-surface-card disabled:opacity-50"
       >
-        {exporting ? "Exporting…" : "⬇ Export CSV (90d)"}
+        <span className="inline-flex items-center justify-center gap-2">
+          <Icon as={Download} size={15} />
+          {exporting ? "Exporting…" : "Export CSV (90d)"}
+        </span>
       </button>
       {exportError && (
         <p className="text-center text-xs text-negative">Export failed — try again.</p>

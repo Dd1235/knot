@@ -6,6 +6,8 @@ import { RealtimeSession, type RealtimeState } from "@/lib/realtime";
 import { authHeadersForRealtime } from "@/lib/api";
 import Button from "@/components/ui/Button";
 import Logo from "@/components/ui/Logo";
+import Icon from "@/components/ui/Icon";
+import { X } from "lucide-react";
 
 type VoiceState = "listening" | "thinking" | "speaking";
 
@@ -244,7 +246,10 @@ export default function VoiceMode({
           ))}
         </div>
         <Button onClick={onClose} aria-label="Exit voice mode">
-          ✕ exit voice
+          <span className="inline-flex items-center gap-1.5">
+            <Icon as={X} size={13} />
+            exit voice
+          </span>
         </Button>
       </div>
 
