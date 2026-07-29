@@ -47,9 +47,15 @@ class BedrockEmbeddings:
     """Titan Text Embeddings v2 via boto3 (sync SDK, run in a thread)."""
 
     def __init__(self) -> None:
+        import os
+
         import boto3
 
         settings = get_settings()
+        if settings.aws_bearer_token_bedrock:
+            os.environ.setdefault(
+                "AWS_BEARER_TOKEN_BEDROCK", settings.aws_bearer_token_bedrock
+            )
         self._client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
         self._model = settings.bedrock_embedding_model
         self._dims = settings.embedding_dims

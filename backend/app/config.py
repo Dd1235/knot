@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     openai_embedding_model: str = "text-embedding-3-small"
 
     aws_region: str = "us-east-1"
+    # Bedrock API key (bearer auth) — exported to the process env so boto3
+    # picks it up; falls back to the default credential chain when empty.
+    aws_bearer_token_bedrock: str = ""
     # Nova Pro default (Claude needs the Anthropic use-case agreement first);
     # switch via BEDROCK_CHAT_MODEL, e.g. us.anthropic.claude-sonnet-4-5-20250929-v1:0
     bedrock_chat_model: str = "us.amazon.nova-pro-v1:0"

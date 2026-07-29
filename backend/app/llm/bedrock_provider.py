@@ -65,9 +65,15 @@ def _to_bedrock_tools(tools: list[dict]) -> dict:
 
 class BedrockProvider:
     def __init__(self) -> None:
+        import os
+
         import boto3
 
         settings = get_settings()
+        if settings.aws_bearer_token_bedrock:
+            os.environ.setdefault(
+                "AWS_BEARER_TOKEN_BEDROCK", settings.aws_bearer_token_bedrock
+            )
         self._client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
         self._model = settings.bedrock_chat_model
 
