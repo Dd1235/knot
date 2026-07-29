@@ -62,3 +62,9 @@ OpenAI and Titan embeddings share our 512-dim column shape but live in different
 
 ### D19. Voice is a ladder: Web Speech now, Nova 2 Sonic when AWS clears
 Browser Web Speech API (`en-IN`) gives free on-device speech-to-text with live transcripts, and speechSynthesis speaks replies — voice-first UX with zero cloud dependency, shipping today. Amazon Nova 2 Sonic (bidirectional streaming, barge-in, Hindi) upgrades the experience later behind the same `/chat` + tool registry; the voice path never gets its own business logic. AWS's account-verification gate blocks all Bedrock generative models equally (tested: same "Operation not allowed" via SigV4 and Bedrock API key), so no provider swap dodges it — only waiting does.
+
+### D20. Provider strategy: Bedrock open models for the brain, OpenAI where genuinely better
+Bedrock's catalog (verified in us-east-1) carries Mistral Large 3, Kimi K2.5 / K2-Thinking, DeepSeek v3.2, and Qwen3 — none need Anthropic's use-case agreement. Plan: once account verification clears, benchmark Kimi K2.5 and Mistral Large 3 against gpt-5-mini on our tool-discipline suite (the 3/3 rent-rule test) and make the winner the judged-demo default. OpenAI stays for what it is genuinely best at: dev-mode iteration and realtime voice (until Nova 2 Sonic unblocks). Budget ceiling for personal use: <$10/month out of pocket (AWS hosting comes from credits; site torn down after judging).
+
+### D21. Spending groups live in a seeded table, not code
+The professional needs/wants/savings split (essentials / discretionary / savings_invest / income) is a `category_groups` table seeded by migration, LEFT-JOINed in analytics SQL with COALESCE to 'other'. In-table (not a Python dict) so dashboards are pure SQL, unmapped categories degrade gracefully, and per-user overrides are one column away. Charts use fixed group colors (validated dark palette: blue/orange/aqua/yellow) — color follows the entity, never the rank.
