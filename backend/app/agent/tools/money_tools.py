@@ -7,7 +7,7 @@ from psycopg.rows import dict_row
 
 from app.agent.registry import ToolContext, register
 from app.db.tx import run_serializable
-from app.ledger import recurring, service
+from app.ledger import analytics, recurring, service
 from app.ledger.service import LedgerError, LegSpec
 
 TWO_PLACES = Decimal("0.01")
@@ -178,3 +178,70 @@ async def stop_recurring(ctx: ToolContext, args: dict) -> dict:
         return {"error": f"no recurring commitment named '{args['name']}'"}
     listed = await recurring.list_commitments(ctx.user_handle)
     return {"stopped": row["name"], "monthly_total": listed["monthly_total"]}
+
+
+@register(
+    "withdraw_cash",
+    "Record taking physical cash out of a bank/ATM. This is a transfer, not "
+    "spending — it moves money from the account into cash in hand. Use for "
+    "'took out 5000 from the ATM' or 'withdrew 2000'.",
+    {
+        "type": "object",
+        "properties": {
+            "amount": {"type": "number", "description": "INR withdrawn"},
+            "account": {
+                "type": "string",
+                "description": "Account it came from, default 'bank'",
+            },
+        },
+        "required": ["amount"],
+    },
+)
+async def withdraw_cash(ctx: ToolContext, args: dict) -> dict:
+    amount = Decimal(str(args["amount"])).quantize(TWO_PLACES)
+    if amount <= 0:
+        return {"error": "amount must be positive"}
+    source = (args.get("account") or "bank").strip().lower()
+    posted = await service.post_transaction(
+        ctx.user_handle,
+        f"Cash withdrawn from {source}",
+        [LegSpec("cash", amount), LegSpec(source, -amount)],
+        category="withdrawal",
+        raw_input=ctx.user_message,
+    )
+    cash = await analytics.cash_float(ctx.user_handle)
+    return {"transaction_id": str(posted.id), "cash_in_hand": cash}
+
+
+@register(
+    "log_cash_spend",
+    "Record spending physical cash. Use when the user says something was paid "
+    "in cash ('paid 200 cash for vegetables', 'gave the auto 60 in cash'). "
+    "This is what closes the loop on money withdrawn from an ATM.",
+    {
+        "type": "object",
+        "properties": {
+            "amount": {"type": "number"},
+            "description": {"type": "string"},
+            "category": {"type": "string", "description": "e.g. groceries, transport, food"},
+        },
+        "required": ["amount", "description"],
+    },
+)
+async def log_cash_spend(ctx: ToolContext, args: dict) -> dict:
+    amount = Decimal(str(args["amount"])).quantize(TWO_PLACES)
+    if amount <= 0:
+        return {"error": "amount must be positive"}
+    category = (args.get("category") or "general").strip().lower()
+    posted = await service.post_transaction(
+        ctx.user_handle,
+        args["description"],
+        [LegSpec(f"expense:{category}", amount), LegSpec("cash", -amount)],
+        category=category,
+        raw_input=ctx.user_message,
+    )
+    cash = await analytics.cash_float(ctx.user_handle)
+    return {
+        "transaction_id": str(posted.id),
+        "still_unaccounted": cash["unaccounted"],
+    }
