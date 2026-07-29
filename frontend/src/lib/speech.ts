@@ -33,6 +33,7 @@ declare global {
 export function useSpeechInput(handlers: {
   onInterim: (text: string) => void;
   onFinal: (text: string) => void;
+  onSilence?: () => void;
 }) {
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
@@ -75,6 +76,7 @@ export function useSpeechInput(handlers: {
       setListening(false);
       const text = finalRef.current.trim();
       if (text) handlersRef.current.onFinal(text);
+      else handlersRef.current.onSilence?.();
     };
     recognition.onerror = () => {
       recognitionRef.current = null;
@@ -89,11 +91,22 @@ export function useSpeechInput(handlers: {
   return { supported, listening, start, stop };
 }
 
-export function speak(text: string) {
-  if (typeof window === "undefined" || !window.speechSynthesis) return;
+export function speak(text: string, onEnd?: () => void) {
+  if (typeof window === "undefined" || !window.speechSynthesis) {
+    onEnd?.();
+    return;
+  }
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "en-IN";
   utterance.rate = 1.05;
+  if (onEnd) {
+    utterance.onend = onEnd;
+    utterance.onerror = onEnd;
+  }
   window.speechSynthesis.speak(utterance);
+}
+
+export function stopSpeaking() {
+  if (typeof window !== "undefined") window.speechSynthesis?.cancel();
 }

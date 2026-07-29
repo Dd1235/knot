@@ -11,6 +11,7 @@ import {
   sendChatStream,
 } from "@/lib/api";
 import { speak, useSpeechInput } from "@/lib/speech";
+import VoiceMode from "@/components/VoiceMode";
 
 interface Message {
   role: "user" | "assistant";
@@ -129,9 +130,10 @@ export default function ChatPage() {
     });
 
   const send = useCallback(
-    async (text: string, options?: { voice?: boolean }) => {
+    async (text: string, options?: { voice?: boolean }): Promise<string | null> => {
       const message = text.trim();
-      if (!message || busy) return;
+      if (!message || busy) return null;
+      let replyText: string | null = null;
       setInput("");
       setBusy(true);
       setMessages((m) => [
@@ -151,6 +153,7 @@ export default function ChatPage() {
               liveTools: [...(m.liveTools ?? []), tool],
             })),
           onDone: (res) => {
+            replyText = res.reply;
             localStorage.setItem("ledger:session", res.session_id);
             setSessionId(res.session_id);
             patchLast(() => ({
@@ -171,6 +174,7 @@ export default function ChatPage() {
       } finally {
         setBusy(false);
       }
+      return replyText;
     },
     [busy, sessionId]
   );
@@ -179,6 +183,7 @@ export default function ChatPage() {
     onInterim: setInput,
     onFinal: (text) => send(text, { voice: true }),
   });
+  const [voiceOpen, setVoiceOpen] = useState(false);
 
   const newSession = () => {
     localStorage.removeItem("ledger:session");
@@ -188,12 +193,23 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-dvh flex-col">
+      {voiceOpen && (
+        <VoiceMode onUtterance={(text) => send(text)} onClose={() => setVoiceOpen(false)} />
+      )}
       <header className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur px-4 pt-[env(safe-area-inset-top)]">
         <div className="flex h-14 items-center justify-between">
           <h1 className="text-lg font-semibold tracking-tight">
             <span className="text-emerald-400">₹</span> Ledger
           </h1>
           <div className="flex items-center gap-2">
+            {mic.supported && (
+              <button
+                onClick={() => setVoiceOpen(true)}
+                className="rounded-lg border border-sky-900 bg-sky-950/50 px-2.5 py-1.5 text-xs text-sky-400 active:bg-sky-950"
+              >
+                🎧 voice
+              </button>
+            )}
             <button
               onClick={newSession}
               title="New session (memory persists!)"
