@@ -17,7 +17,7 @@ from psycopg.rows import dict_row
 
 from app.db.pool import pool
 from app.db.tx import run_serializable
-from app.ledger import service
+from app.ledger import categories, service
 from app.ledger.service import LedgerError, LegSpec, ensure_user
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -82,7 +82,8 @@ async def list_commitments(user_handle: str) -> dict:
         cur = await conn.execute(
             """
             SELECT c.id::STRING, c.name, c.amount::STRING, c.cadence, c.due_day,
-                   c.category, c.direction, c.active, c.last_posted_period
+                   c.category, c.direction, c.active, c.last_posted_period,
+                   c.created_at
             FROM recurring_commitments AS c
             JOIN users AS u ON u.id = c.user_id
             WHERE u.handle = %s
@@ -226,8 +227,12 @@ async def post_due(user_handle: str) -> list[str]:
                     LegSpec(f"income:{c['category']}", -amount),
                 ]
             else:
+                # categories.account_for, not a hardcoded "expense:" — a
+                # recurring SIP is still a SIP. Hardcoding it here reintroduced
+                # the exact bug D23 exists to prevent, on the one path the user
+                # never sees happen.
                 legs = [
-                    LegSpec(f"expense:{c['category']}", amount),
+                    LegSpec(categories.account_for(c["category"]), amount),
                     LegSpec("cash", -amount),
                 ]
             for period in periods:
@@ -250,10 +255,20 @@ async def post_due(user_handle: str) -> list[str]:
     return await run_serializable(_fn)
 
 
-def _next_occurrence(cadence: str, due_day: int | None, today: date) -> date:
+def _next_occurrence(
+    cadence: str, due_day: int | None, today: date, anniversary: date | None = None
+) -> date:
     """The next date this commitment falls due, on or after today."""
     if cadence == "yearly":
-        return date(today.year + 1, 1, 1)
+        # Yearly falls on its own anniversary, matching _current_period. This
+        # used to return 1 January next year unconditionally, so a yearly
+        # commitment never appeared in a 45-day horizon and never warned anyone.
+        base = anniversary or date(today.year, 1, 1)
+        month, day = base.month, base.day
+        this_year = date(today.year, month, min(day, monthrange(today.year, month)[1]))
+        if this_year >= today:
+            return this_year
+        return date(today.year + 1, month, min(day, monthrange(today.year + 1, month)[1]))
     day = due_day or 1
     this_month = min(day, monthrange(today.year, today.month)[1])
     if this_month >= today.day:
@@ -276,7 +291,14 @@ async def upcoming(user_handle: str, horizon_days: int = 45) -> dict:
     for c in listed["commitments"]:
         if not c["active"]:
             continue
-        due = _next_occurrence(c["cadence"], c["due_day"], today)
+        due = _next_occurrence(
+            c["cadence"],
+            c["due_day"],
+            today,
+            # Yearly commitments fall on their creation anniversary, the same
+            # rule _current_period already used for deciding they were due.
+            anniversary=c["created_at"].astimezone(IST).date() if c.get("created_at") else None,
+        )
         if due > horizon:
             continue
         entry = {
