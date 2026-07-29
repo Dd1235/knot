@@ -11,6 +11,9 @@ from app.ledger import recurring, service
 from app.ledger.service import LedgerError, LegSpec
 
 TWO_PLACES = Decimal("0.01")
+# An opening balance is posted as a debit, so only spendable (asset) accounts
+# make sense — a liability target would invert net worth.
+NON_ASSET_PREFIXES = ("expense:", "income:", "liability:", "receivable:", "equity:")
 
 OPENING_CATEGORY = "opening_balance"
 
@@ -29,6 +32,11 @@ async def set_opening_balance_for(
     """
     amount = Decimal(amount).quantize(TWO_PLACES)
     account = (account or "cash").strip().lower()
+    if account.startswith(NON_ASSET_PREFIXES):
+        raise OpeningBalanceExists(
+            f"{account} is not a spendable account — an opening balance is a debit "
+            "and would invert net worth. Use a cash or bank account."
+        )
     if amount <= 0:
         raise LedgerError("opening balance must be positive")
 

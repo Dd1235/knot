@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from app.agent.registry import ToolContext, register
 from app.ledger import service
@@ -10,6 +11,7 @@ from app.memory import episodic, writer
 from app.tasks import fire_and_forget
 
 TWO_PLACES = Decimal("0.01")
+IST = ZoneInfo("Asia/Kolkata")
 
 
 def _person_account(name: str) -> str:
@@ -17,7 +19,10 @@ def _person_account(name: str) -> str:
 
 
 def _parse_occurred_at(value: str | None) -> datetime | None:
-    return datetime.fromisoformat(value) if value else None
+    if not value:
+        return None
+    parsed = datetime.fromisoformat(value)
+    return parsed.replace(tzinfo=IST) if parsed.tzinfo is None else parsed
 
 
 def _build_legs(
@@ -150,7 +155,10 @@ async def record_transaction(ctx: ToolContext, args: dict) -> dict:
     },
 )
 async def settle_up(ctx: ToolContext, args: dict) -> dict:
-    amount = Decimal(str(args["amount"])).quantize(TWO_PLACES) if args.get("amount") else None
+    raw_amount = args.get("amount")
+    amount = (
+        Decimal(str(raw_amount)).quantize(TWO_PLACES) if raw_amount is not None else None
+    )
     posted = await service.settle_up(ctx.user_handle, args["person"], amount)
     fire_and_forget(
         episodic.record_event(
