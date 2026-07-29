@@ -1,0 +1,205 @@
+"""Analytics + recurring commitment tests. Run against the live dev cluster.
+
+Each test uses a unique throwaway user handle, so tests are isolated and
+re-runnable without cleanup.
+"""
+
+import uuid
+from datetime import datetime
+from decimal import Decimal
+from zoneinfo import ZoneInfo
+
+import httpx
+import pytest
+
+from app.agent.registry import ToolContext
+from app.agent.tools import money_tools
+from app.api.analytics import defuse_formula
+from app.config import get_settings
+from app.db.pool import close_pool, open_pool
+from app.ledger import analytics, recurring, service
+from app.ledger.service import LegSpec
+
+IST = ZoneInfo("Asia/Kolkata")
+
+
+@pytest.fixture(scope="session", autouse=True)
+async def _pool():
+    await open_pool()
+    yield
+    await close_pool()
+
+
+@pytest.fixture
+def user() -> str:
+    return f"antest-{uuid.uuid4().hex[:12]}"
+
+
+def spend(user: str, amount: str, category: str, description: str):
+    return service.post_transaction(
+        user,
+        description,
+        [LegSpec(f"expense:{category}", Decimal(amount)), LegSpec("cash", Decimal(amount) * -1)],
+        category=category,
+    )
+
+
+async def test_summary_totals_groups_and_net_worth(user):
+    await spend(user, "100", "food", "swiggy")
+    await spend(user, "500", "rent", "july rent")
+    await service.post_transaction(
+        user,
+        "salary",
+        [LegSpec("cash", Decimal("1000")), LegSpec("income:salary", Decimal("-1000"))],
+        category="salary",
+    )
+    await service.post_transaction(
+        user,
+        "lent arun 200",
+        [LegSpec("receivable:arun", Decimal("200")), LegSpec("cash", Decimal("-200"))],
+        category="loan",
+    )
+
+    result = await analytics.summary(user, 30)
+
+    assert result["window_days"] == 30
+    assert result["total_spend"] == "600.00"
+    assert result["total_income"] == "1000.00"
+    assert result["net_cashflow"] == "400.00"
+
+    assert result["by_category"] == [
+        {"category": "rent", "grp": "essentials", "amount": "500.00"},
+        {"category": "food", "grp": "discretionary", "amount": "100.00"},
+    ]
+    groups = {g["grp"]: g for g in result["by_group"]}
+    assert groups["essentials"]["amount"] == "500.00"
+    assert groups["essentials"]["pct_of_spend"] == 83.3
+    assert groups["discretionary"]["amount"] == "100.00"
+    assert groups["discretionary"]["pct_of_spend"] == 16.7
+
+    # cash: -100 -500 +1000 -200 = 200; receivable:arun = 200 -> assets 400.
+    net_worth = result["net_worth"]
+    assert net_worth["assets"] == "400.00"
+    assert net_worth["liabilities"] == "0.00"
+    assert net_worth["net_worth"] == "400.00"
+
+    daily = result["daily"]
+    assert len(daily) == 30
+    assert daily[0]["date"] < daily[-1]["date"]  # oldest first
+    assert daily[-1]["date"] == datetime.now(IST).date().isoformat()
+    assert daily[-1]["spend"] == "600.00"
+    assert daily[-1]["income"] == "1000.00"
+    assert daily[0] == {"date": daily[0]["date"], "spend": "0.00", "income": "0.00"}
+
+
+async def test_voided_transaction_nets_out_of_summary(user):
+    posted = await spend(user, "100", "food", "disputed swiggy")
+    await service.void_transaction(user, posted.id, "user disputed")
+
+    result = await analytics.summary(user, 30)
+    assert result["total_spend"] == "0.00"
+    assert result["net_cashflow"] == "0.00"
+    assert result["net_worth"]["net_worth"] == "0.00"
+
+
+async def test_recurring_post_due_is_idempotent(user):
+    await recurring.upsert_commitment(user, "Netflix", Decimal("649"))
+
+    first = await recurring.post_due(user)
+    assert first == ["Netflix"]
+    second = await recurring.post_due(user)
+    assert second == []
+
+    txns = await service.recent_transactions(user)
+    assert len(txns) == 1
+    assert txns[0]["description"] == "Netflix (auto)"
+    assert txns[0]["category"] == "subscriptions"
+    assert txns[0]["source"] == "system"
+    assert await service.ledger_sum(user) == 0
+
+    listed = await recurring.list_commitments(user)
+    assert listed["monthly_total"] == "649.00"
+    assert listed["commitments"][0]["last_posted_period"] == datetime.now(IST).strftime("%Y-%m")
+
+
+async def test_opening_balance_once_and_counted_in_net_worth(user):
+    ctx = ToolContext(user_handle=user, session_id=f"sess-{uuid.uuid4().hex[:8]}")
+    result = await money_tools.set_opening_balance(ctx, {"amount": 40000})
+    accounts = {a["name"]: a for a in await service.account_balances(user)}
+    assert accounts["cash"]["balance"] == "40000.00"
+    assert accounts["equity:opening"]["type"] == "liability"
+    assert "transaction_id" in result
+
+    with pytest.raises(money_tools.OpeningBalanceExists, match="cash"):
+        await money_tools.set_opening_balance(ctx, {"amount": 999})
+
+    summary = await analytics.summary(user, 30)
+    assert summary["net_worth"] == {
+        "assets": "40000.00",
+        "liabilities": "0.00",
+        "net_worth": "40000.00",
+    }
+
+
+def test_defuse_formula_prefixes_dangerous_cells():
+    assert defuse_formula("=SUM(A1)") == "'=SUM(A1)"
+    assert defuse_formula("+91 999") == "'+91 999"
+    assert defuse_formula("-42") == "'-42"
+    assert defuse_formula("@import") == "'@import"
+    assert defuse_formula("chai 15") == "chai 15"
+    assert defuse_formula("") == ""
+
+
+async def test_csv_export_escapes_formula_cells(user):
+    from app.main import app
+
+    await spend(user, "55", "food", "=SUM(A1) totally normal chai")
+
+    headers = {"X-User": user}
+    passcode = get_settings().app_passcode
+    if passcode:
+        headers["Authorization"] = f"Bearer {passcode}"
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/analytics/export.csv", params={"days": 7}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/csv")
+    assert "attachment" in resp.headers["content-disposition"]
+    lines = resp.text.strip().splitlines()
+    assert lines[0] == "date,description,category,group,amount,direction,source,voided"
+    assert "'=SUM(A1) totally normal chai" in resp.text
+    row = lines[1].split(",")
+    assert row[1] == "'=SUM(A1) totally normal chai"
+    assert row[2:] == ["food", "discretionary", "55.00", "spent", "text", "false"]
+
+
+def test_monthly_due_day_clamps_to_short_months():
+    """A commitment due on the 31st must still post in 30-day months."""
+    from datetime import date, datetime
+
+    from app.ledger.recurring import _current_period
+
+    created = datetime(2026, 1, 15, tzinfo=IST)
+    assert _current_period("monthly", 31, created, date(2026, 4, 30)) == "2026-04"
+    assert _current_period("monthly", 31, created, date(2026, 2, 28)) == "2026-02"
+    assert _current_period("monthly", 31, created, date(2026, 4, 29)) is None
+    assert _current_period("monthly", 1, created, date(2026, 4, 1)) == "2026-04"
+
+
+async def test_daily_spine_sums_to_headline_totals(user):
+    """Calendar-aligned windows keep the chart and the headline consistent."""
+    from decimal import Decimal
+
+    from app.ledger import analytics
+    from app.ledger.service import LegSpec, post_transaction
+
+    await post_transaction(
+        user,
+        "groceries",
+        [LegSpec("expense:groceries", Decimal("300")), LegSpec("cash", Decimal("-300"))],
+        category="groceries",
+    )
+    result = await analytics.summary(user, 30)
+    assert sum(Decimal(d["spend"]) for d in result["daily"]) == Decimal(result["total_spend"])
+    assert sum(Decimal(d["income"]) for d in result["daily"]) == Decimal(result["total_income"])
