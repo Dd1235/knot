@@ -5,7 +5,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from app.agent.registry import ToolContext, register
-from app.ledger import service
+from app.ledger import categories, service
 from app.ledger.service import LegSpec, UnbalancedTransaction
 from app.memory import episodic, writer
 from app.tasks import fire_and_forget
@@ -32,7 +32,9 @@ def _build_legs(
     counterparty: str | None,
     split_with: list[str],
 ) -> list[LegSpec]:
-    expense_account = f"expense:{category}"
+    # A SIP or FD debit lands in an asset account, not an expense —
+    # the money changed shape, it did not leave.
+    expense_account = categories.account_for(category)
     if direction == "spent" and split_with:
         # User paid the full amount; each person owes an equal share.
         n = len(split_with) + 1
