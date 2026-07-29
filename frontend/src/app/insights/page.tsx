@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import AppHeader from "@/components/ui/AppHeader";
 import Money from "@/components/ui/Money";
+import SegmentedNav from "@/components/ui/SegmentedNav";
 import Stat from "@/components/ui/Stat";
 import {
   AnalyticsSummary,
@@ -329,32 +331,15 @@ export default function InsightsPage() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <header className="sticky top-0 z-10 border-b border-line bg-surface-base/90 backdrop-blur px-4 pt-[env(safe-area-inset-top)]">
-        <div className="flex h-14 items-center justify-between">
-          <h1 className="text-lg font-semibold tracking-tight">📊 Insights</h1>
-          <Link
-            href="/"
-            className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-secondary active:bg-surface-card"
-          >
-            ← chat
-          </Link>
-        </div>
-        <nav className="flex gap-1 pb-2">
-          {PERIODS.map((p) => (
-            <button
-              key={p}
-              onClick={() => setDays(p)}
-              className={`rounded-full px-3 py-1.5 text-xs ${
-                days === p
-                  ? "bg-brand text-ink-on-brand"
-                  : "border border-line text-ink-secondary active:bg-surface-card"
-              }`}
-            >
-              {p} days
-            </button>
-          ))}
-        </nav>
-      </header>
+      <AppHeader title="Insights" back="/">
+        <SegmentedNav
+          items={PERIODS.map((p) => ({ id: String(p), label: `${p} days` }))}
+          value={String(days)}
+          onChange={(id) => setDays(Number(id) as Period)}
+          label="Time period"
+          className="pb-2"
+        />
+      </AppHeader>
 
       <main className="mx-auto w-full max-w-lg flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {loading ? (
