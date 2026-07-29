@@ -10,15 +10,29 @@ export function getUserHandle(): string {
   return user;
 }
 
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
+function authHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const passcode = localStorage.getItem("ledger:passcode");
+  return passcode ? { Authorization: `Bearer ${passcode}` } : {};
+}
+
+async function api<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
       "X-User": getUserHandle(),
+      ...authHeaders(),
       ...(init?.headers ?? {}),
     },
   });
+  if (res.status === 401 && !retried && typeof window !== "undefined") {
+    const passcode = window.prompt("Enter the Ledger passcode:");
+    if (passcode) {
+      localStorage.setItem("ledger:passcode", passcode);
+      return api<T>(path, init, true);
+    }
+  }
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
   return res.json();
 }
