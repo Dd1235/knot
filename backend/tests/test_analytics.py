@@ -200,3 +200,90 @@ async def test_daily_spine_sums_to_headline_totals(user):
     result = await analytics.summary(user, 30)
     assert sum(Decimal(d["spend"]) for d in result["daily"]) == Decimal(result["total_spend"])
     assert sum(Decimal(d["income"]) for d in result["daily"]) == Decimal(result["total_income"])
+
+
+async def test_void_nets_out_of_the_original_window_not_today(user):
+    """A reversal must inherit the original's date, or windowed aggregates
+    show negative spend in the current period."""
+    from datetime import datetime, timedelta
+
+    old = datetime.now(IST) - timedelta(days=40)
+    posted = await service.post_transaction(
+        user,
+        "old rent",
+        [LegSpec("expense:rent", Decimal("5000")), LegSpec("cash", Decimal("-5000"))],
+        category="rent",
+        occurred_at=old,
+    )
+    await service.void_transaction(user, posted.id, "user disputed")
+
+    recent = await analytics.summary(user, 7)
+    assert recent["total_spend"] == "0.00"
+    assert recent["net_cashflow"] == "0.00"
+    assert all(Decimal(d["spend"]) >= 0 for d in recent["daily"])
+
+
+async def test_void_cancels_the_original_category_row(user):
+    """The reversal keeps the original category, so by_category nets to zero
+    instead of leaving a phantom 'reversal' bucket."""
+    posted = await spend(user, "100", "food", "disputed swiggy")
+    await service.void_transaction(user, posted.id, "disputed")
+
+    result = await analytics.summary(user, 30)
+    assert result["by_category"] == []
+    assert result["by_group"] == []
+
+
+async def test_idempotency_keys_are_scoped_per_user(user):
+    """A client-chosen key must not return another user's transaction."""
+    other = f"antest-{uuid.uuid4().hex[:12]}"
+    key = "shared-key-2026-07-29"
+
+    mine = await service.post_transaction(
+        user,
+        "my chai",
+        [LegSpec("expense:food", Decimal("15")), LegSpec("cash", Decimal("-15"))],
+        category="food",
+        idempotency_key=key,
+    )
+    theirs = await service.post_transaction(
+        other,
+        "their rent",
+        [LegSpec("expense:rent", Decimal("30000")), LegSpec("cash", Decimal("-30000"))],
+        category="rent",
+        idempotency_key=key,
+    )
+    assert not theirs.deduplicated
+    assert theirs.id != mine.id
+    assert (await analytics.summary(other, 30))["total_spend"] == "30000.00"
+
+
+async def test_settlement_rejects_zero_and_negative_amounts(user):
+    await service.post_transaction(
+        user,
+        "lent priya",
+        [LegSpec("receivable:priya", Decimal("500")), LegSpec("cash", Decimal("-500"))],
+        category="loan",
+    )
+    for bad in (Decimal("0"), Decimal("-100")):
+        with pytest.raises(service.LedgerError, match="positive"):
+            await service.settle_up(user, "priya", bad)
+    assert (await service.person_balances(user))[0]["balance"] == "500.00"
+
+
+def test_defuse_formula_covers_whitespace_prefixed_payloads():
+    assert defuse_formula("\t=cmd|' /c calc'!A1").startswith("'")
+    assert defuse_formula("\r=1+1").startswith("'")
+    assert defuse_formula(" =HYPERLINK()").startswith("'")
+    assert defuse_formula("\n@SUM(1)").startswith("'")
+    assert defuse_formula("normal text") == "normal text"
+
+
+async def test_naive_occurred_at_is_treated_as_local_time(user):
+    """The prompt tells the model it is in IST, so naive datetimes it emits
+    must not be read as UTC — an evening entry would land on the next day."""
+    from app.agent.tools.ledger_tools import _parse_occurred_at
+
+    parsed = _parse_occurred_at("2026-07-29T21:30:00")
+    assert parsed is not None and parsed.tzinfo is not None
+    assert parsed.utcoffset().total_seconds() == 5.5 * 3600
