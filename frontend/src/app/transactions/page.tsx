@@ -39,7 +39,7 @@ export default function TransactionsPage() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <AppHeader title="Transactions" back="/" />
+      <AppHeader title="Transactions" back="/app" />
 
       <main className="flex-1 overflow-y-auto px-4 py-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
         {transactions.length === 0 ? (

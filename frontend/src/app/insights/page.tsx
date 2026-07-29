@@ -376,7 +376,7 @@ export default function InsightsPage() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <AppHeader title="Insights" back="/">
+      <AppHeader title="Insights" back="/app">
         <SegmentedNav
           items={PERIODS.map((p) => ({ id: String(p), label: `${p} days` }))}
           value={String(days)}

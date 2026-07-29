@@ -19,7 +19,8 @@ function authHeaders(): Record<string, string> {
 }
 
 function onUnauthorized(): never {
-  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+  const path = typeof window === "undefined" ? "" : window.location.pathname;
+  if (path && path !== "/" && !path.startsWith("/login")) {
     window.location.href = "/login";
   }
   throw new Error("401: sign in required");

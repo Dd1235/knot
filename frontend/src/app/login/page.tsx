@@ -21,7 +21,7 @@ export default function LoginPage() {
     setError(null);
     try {
       await (mode === "login" ? login(email, password) : signup(email, password));
-      router.push("/");
+      router.push("/app");
     } catch (err) {
       setError(err instanceof Error ? err.message : "something went wrong");
     } finally {
