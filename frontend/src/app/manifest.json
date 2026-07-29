@@ -1,17 +1,17 @@
 {
-  "name": "Ledger",
-  "short_name": "Ledger",
-  "description": "A voice-first personal finance agent with a real memory",
+  "name": "Knot",
+  "short_name": "Knot",
+  "description": "Money you can just talk about — a finance agent that remembers.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#09090b",
-  "theme_color": "#09090b",
+  "background_color": "#0f0e0c",
+  "theme_color": "#0f0e0c",
   "icons": [
     {
       "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ]
 }

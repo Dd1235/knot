@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ledger",
-  description: "A voice-first personal finance agent with a real memory",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Ledger" },
+  title: "Knot",
+  description: "Money you can just talk about — a finance agent that remembers.",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Knot" },
 };
 
 export const viewport: Viewport = {
