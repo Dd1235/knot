@@ -9,8 +9,11 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import app.agent.tools  # noqa: F401  (registers tools)
+from app.agent.context import assemble
 from app.agent.registry import ToolContext, dispatch, specs
 from app.llm.provider import get_provider
+from app.memory import procedural
+from app.tasks import fire_and_forget
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +33,7 @@ class ToolEvent:
 class TurnResult:
     reply: str
     events: list[ToolEvent] = field(default_factory=list)
+    context_trace: dict = field(default_factory=dict)
 
 
 @lru_cache
@@ -44,13 +48,18 @@ def _system_prompt() -> str:
 
 async def run_turn(ctx: ToolContext, history: list[dict], user_message: str) -> TurnResult:
     provider = get_provider()
+    assembled = await assemble(ctx.user_handle, user_message)
+    system = _system_prompt() + (f"\n\n{assembled.suffix}" if assembled.suffix else "")
+    if assembled.rule_ids:
+        fire_and_forget(procedural.record_usage(assembled.rule_ids), "rule-usage")
+
     messages = [*history, {"role": "user", "content": user_message}]
     events: list[ToolEvent] = []
 
     for _ in range(MAX_ITERATIONS):
-        response = await provider.chat(_system_prompt(), messages, specs())
+        response = await provider.chat(system, messages, specs())
         if not response.tool_calls:
-            return TurnResult(response.text or "", events)
+            return TurnResult(response.text or "", events, assembled.trace)
 
         messages.append(
             {
@@ -75,5 +84,5 @@ async def run_turn(ctx: ToolContext, history: list[dict], user_message: str) -> 
 
     log.warning("turn hit MAX_ITERATIONS for session %s", ctx.session_id)
     return TurnResult(
-        "I got stuck in a loop handling that — mind rephrasing?", events
+        "I got stuck in a loop handling that — mind rephrasing?", events, assembled.trace
     )

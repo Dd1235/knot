@@ -32,6 +32,7 @@ async def chat(body: ChatIn, x_user: str = Header(default="demo")) -> dict:
             {"tool": e.tool, "args": e.args, "result": e.result} for e in result.events
         ]
         or None,
+        context_trace=result.context_trace or None,
     )
     return {
         "session_id": str(session_id),
@@ -39,4 +40,5 @@ async def chat(body: ChatIn, x_user: str = Header(default="demo")) -> dict:
         "events": [
             {"tool": e.tool, "args": e.args, "result": e.result} for e in result.events
         ],
+        "context_trace": result.context_trace,
     }

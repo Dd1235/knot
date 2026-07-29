@@ -40,7 +40,11 @@ async def get_or_create_session(user_handle: str, session_id: UUID | None) -> UU
 
 
 async def append_turn(
-    session_id: UUID, role: str, content: str, tool_calls: list[dict] | None = None
+    session_id: UUID,
+    role: str,
+    content: str,
+    tool_calls: list[dict] | None = None,
+    context_trace: dict | None = None,
 ) -> None:
     async def _fn(conn: AsyncConnection) -> None:
         cur = await conn.execute(
@@ -50,10 +54,18 @@ async def append_turn(
         seq = (await cur.fetchone())[0]
         await conn.execute(
             """
-            INSERT INTO conversation_turns (session_id, seq, role, content, tool_calls)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO conversation_turns
+                (session_id, seq, role, content, tool_calls, context_trace)
+            VALUES (%s, %s, %s, %s, %s, %s)
             """,
-            (session_id, seq, role, content, json.dumps(tool_calls) if tool_calls else None),
+            (
+                session_id,
+                seq,
+                role,
+                content,
+                json.dumps(tool_calls, default=str) if tool_calls else None,
+                json.dumps(context_trace, default=str) if context_trace else None,
+            ),
         )
         await conn.execute(
             "UPDATE sessions SET last_active_at = now() WHERE id = %s", (session_id,)
