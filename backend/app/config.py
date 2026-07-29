@@ -5,6 +5,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
+# Signing keys that must never reach a public deployment.
+DEV_SECRETS = {
+    "dev",
+    "dev-only-insecure-secret-change-in-production",
+    "changeme",
+    "secret",
+}
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -16,10 +24,14 @@ class Settings(BaseSettings):
     database_url: str
     cors_origins: str = "http://localhost:3100"
 
-    # Auth: signed session cookies. auth_required=True (production) makes the
-    # acting user come only from a verified token, never a request header.
-    auth_required: bool = False
-    session_secret: str = "dev-only-insecure-secret-change-in-production"
+    # Auth: signed session cookies. Secure by default — a deployment that
+    # forgets to configure auth must fail closed, not silently serve every
+    # account to anyone who guesses a handle.
+    auth_required: bool = True
+    # No default on purpose: pydantic-settings refuses to start without it, so
+    # a known signing key cannot reach production. validate_settings() rejects
+    # weak values when auth is on.
+    session_secret: str
     cookie_secure: bool = False
 
     # S3 bucket for CSV exports (empty = stream the file inline instead).
@@ -45,6 +57,24 @@ class Settings(BaseSettings):
     # Both text-embedding-3-small and Titan v2 support 512-dim output, so the
     # VECTOR(512) columns are provider-independent.
     embedding_dims: int = 512
+
+
+def validate_settings(settings: Settings) -> None:
+    """Refuse to boot an insecure deployment rather than serving one."""
+    if not settings.auth_required:
+        return
+    secret = settings.session_secret.strip()
+    if secret in DEV_SECRETS or len(secret) < 32:
+        raise RuntimeError(
+            "SESSION_SECRET must be a unique random value of at least 32 characters "
+            "when AUTH_REQUIRED is on. Generate one with: "
+            "python -c 'import secrets; print(secrets.token_urlsafe(48))'"
+        )
+    if not settings.cookie_secure:
+        raise RuntimeError(
+            "COOKIE_SECURE must be true when AUTH_REQUIRED is on, or session "
+            "cookies will be sent over plaintext HTTP."
+        )
 
 
 @lru_cache

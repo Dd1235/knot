@@ -11,12 +11,13 @@ from app.api.demo import router as demo_router
 from app.api.insights import router as insights_router
 from app.api.ledger import router as ledger_router
 from app.api.memory import router as memory_router
-from app.config import get_settings
+from app.config import get_settings, validate_settings
 from app.db.pool import close_pool, open_pool, pool
 from app.obs.logging import configure_logging
 from app.obs.middleware import guard
 
 configure_logging()
+validate_settings(get_settings())
 
 
 @asynccontextmanager
