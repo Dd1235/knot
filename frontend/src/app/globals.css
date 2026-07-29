@@ -41,9 +41,9 @@
   --info-soft: rgba(107, 166, 224, 0.14);
   --info-line: rgba(107, 166, 224, 0.34);
 
-  --chart-spend: #e0a93a;
+  --chart-spend: #ff8140;
   --chart-1: #3987e5;
-  --chart-2: #d95926;
+  --chart-2: #b55fba;
   --chart-3: #199e70;
   /* Residual bucket, deliberately achromatic so it can't impersonate a series. */
   --chart-other: #8a8172;
@@ -52,6 +52,16 @@
   --chart-tick: #a8a093;
   --chart-label: #f5f1e8;
   --chart-track: #24211d;
+  /* Sequential ramp for the spending heatmap. One hue, stepped evenly in OKLCH
+     (H 45), so magnitude reads as heat and the order survives greyscale and
+     every form of colour blindness. Deliberately redder than brand gold (H~80)
+     so a heat cell can never be mistaken for brand chrome. A day with no
+     spending stays on the surface colour: an absence, not a low value. */
+  --heat-0: #24211d;
+  --heat-1: #5b301c;
+  --heat-2: #954c28;
+  --heat-3: #cb6532;
+  --heat-4: #ff8140;
 }
 
 @media (prefers-color-scheme: light) {
@@ -91,9 +101,9 @@
     --info-soft: rgba(42, 107, 184, 0.12);
     --info-line: rgba(42, 107, 184, 0.3);
 
-    --chart-spend: #8a6410;
+    --chart-spend: #bf4b00;
     --chart-1: #2a78d6;
-    --chart-2: #eb6834;
+    --chart-2: #aa50b1;
     --chart-3: #1baf7a;
     --chart-other: #8a8172;
     --chart-grid: #e8e1d3;
@@ -101,6 +111,12 @@
     --chart-tick: #5c5548;
     --chart-label: #1a1712;
     --chart-track: #f2ede2;
+
+    --heat-0: #f2ede2;
+    --heat-1: #f4cab7;
+    --heat-2: #eda382;
+    --heat-3: #de7949;
+    --heat-4: #bf4b00;
   }
 }
 
@@ -138,9 +154,9 @@
   --info-soft: rgba(42, 107, 184, 0.12);
   --info-line: rgba(42, 107, 184, 0.3);
 
-  --chart-spend: #8a6410;
+  --chart-spend: #bf4b00;
   --chart-1: #2a78d6;
-  --chart-2: #eb6834;
+  --chart-2: #aa50b1;
   --chart-3: #1baf7a;
   --chart-other: #8a8172;
   --chart-grid: #e8e1d3;
@@ -148,6 +164,12 @@
   --chart-tick: #5c5548;
   --chart-label: #1a1712;
   --chart-track: #f2ede2;
+
+  --heat-0: #f2ede2;
+  --heat-1: #f4cab7;
+  --heat-2: #eda382;
+  --heat-3: #de7949;
+  --heat-4: #bf4b00;
 }
 
 [data-theme="dark"] {
@@ -184,9 +206,9 @@
   --info-soft: rgba(107, 166, 224, 0.14);
   --info-line: rgba(107, 166, 224, 0.34);
 
-  --chart-spend: #e0a93a;
+  --chart-spend: #ff8140;
   --chart-1: #3987e5;
-  --chart-2: #d95926;
+  --chart-2: #b55fba;
   --chart-3: #199e70;
   --chart-other: #8a8172;
   --chart-grid: #2e2a25;
@@ -194,6 +216,12 @@
   --chart-tick: #a8a093;
   --chart-label: #f5f1e8;
   --chart-track: #24211d;
+
+  --heat-0: #24211d;
+  --heat-1: #5b301c;
+  --heat-2: #954c28;
+  --heat-3: #cb6532;
+  --heat-4: #ff8140;
 }
 
 /* Bridge to Tailwind utilities. `inline` means no --color-* property is
@@ -240,6 +268,11 @@
   --color-chart-tick: var(--chart-tick);
   --color-chart-label: var(--chart-label);
   --color-chart-track: var(--chart-track);
+  --color-heat-0: var(--heat-0);
+  --color-heat-1: var(--heat-1);
+  --color-heat-2: var(--heat-2);
+  --color-heat-3: var(--heat-3);
+  --color-heat-4: var(--heat-4);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
