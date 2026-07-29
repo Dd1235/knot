@@ -11,7 +11,20 @@ import SegmentedNav from "@/components/ui/SegmentedNav";
 import SpendHeatmap from "@/components/SpendHeatmap";
 import Stat from "@/components/ui/Stat";
 import Icon from "@/components/ui/Icon";
-import { Download, RefreshCw } from "lucide-react";
+import {
+  ArrowLeftRight,
+  CalendarClock,
+  CalendarDays,
+  ChartColumn,
+  Download,
+  Layers,
+  RefreshCw,
+  Repeat,
+  Store,
+  Sun,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { GROUP_COLORS, GROUP_LABELS } from "@/lib/groups";
 import {
   AccountBalance,
@@ -62,8 +75,8 @@ function SafeToSpendCard({ data }: { data: SafeToSpend | null }) {
   if (!data) return <SkeletonCard className="h-32" />;
   const available = Number(data.available);
   return (
-    <Card className="hairline-gold border-brand-line bg-brand-soft">
-      <CardTitle>Safe to spend</CardTitle>
+    <Card pad="hero" className="hairline-gold border-brand-line bg-brand-soft">
+      <CardTitle icon={Wallet}>Safe to spend</CardTitle>
       <p className="mb-1">
         <Money
           value={data.available}
@@ -106,7 +119,7 @@ function FrequencyCard({ rhythm }: { rhythm: Rhythm | null }) {
   const maxTimes = top.length ? Math.max(...top.map((m) => m.times)) : 0;
   return (
     <Card>
-      <CardTitle>Where you go most</CardTitle>
+      <CardTitle icon={Store}>Where you go most</CardTitle>
       {top.length === 0 ? (
         <p className="py-3 text-center text-xs text-ink-secondary">
           Nothing recorded in this window yet.
@@ -159,7 +172,7 @@ function TodayCard({ rhythm, daily }: { rhythm: Rhythm | null; daily: DailyFlow[
 
   return (
     <Card>
-      <CardTitle>Today</CardTitle>
+      <CardTitle icon={Sun}>Today</CardTitle>
       <p className="mb-1">
         <Money value={today.spend} size="lg" />
         {today.txns > 0 ? (
@@ -194,8 +207,8 @@ function CashCard({ cash }: { cash: CashFloat | null }) {
   const unaccounted = Number(cash.unaccounted);
   if (Number(cash.withdrawn) === 0) return null;
   return (
-    <Card>
-      <CardTitle>Cash to reconcile</CardTitle>
+    <Card quiet>
+      <CardTitle icon={ArrowLeftRight}>Cash to reconcile</CardTitle>
       <p className="mb-1">
         <Money value={cash.unaccounted} size="lg" />
       </p>
@@ -216,8 +229,8 @@ function UpcomingCard({ safe }: { safe: SafeToSpend | null }) {
   if (!safe) return <SkeletonCard className="h-32" />;
   if (safe.upcoming.length === 0) return null;
   return (
-    <Card>
-      <CardTitle>Due next</CardTitle>
+    <Card quiet>
+      <CardTitle icon={CalendarClock}>Due next</CardTitle>
       <div className="space-y-1.5">
         {safe.upcoming.map((d) => (
           <div key={`${d.name}-${d.due_on}`} className="flex items-baseline justify-between gap-3 text-sm">
@@ -396,7 +409,7 @@ export default function InsightsPage() {
 
   const groupsCard = (
     <Card>
-      <CardTitle>Spending groups</CardTitle>
+      <CardTitle icon={Layers}>Spending groups</CardTitle>
       {!summary || summary.by_group.length === 0 ? (
         <p className="py-3 text-center text-xs text-ink-secondary">
           No spending yet in this window.
@@ -434,7 +447,7 @@ export default function InsightsPage() {
 
   const categoriesCard = (
     <Card>
-      <CardTitle>Top categories</CardTitle>
+      <CardTitle icon={ChartColumn}>Top categories</CardTitle>
       {categories.length === 0 ? (
         <p className="py-3 text-center text-xs text-ink-secondary">
           Nothing spent yet — record a transaction in chat.
@@ -467,8 +480,8 @@ export default function InsightsPage() {
     people === null ? (
       <SkeletonCard className="h-24" />
     ) : people.length === 0 ? null : (
-      <Card>
-        <CardTitle>Who owes who</CardTitle>
+      <Card quiet>
+        <CardTitle icon={Users}>Who owes who</CardTitle>
         <div className="space-y-2">
           {people.map((p) => {
             const owed = Number(p.balance) > 0;
@@ -508,8 +521,8 @@ export default function InsightsPage() {
     recurring === null ? (
       <SkeletonCard className="h-28" />
     ) : (
-      <Card>
-        <CardTitle>Recurring</CardTitle>
+      <Card quiet>
+        <CardTitle icon={Repeat}>Recurring</CardTitle>
         {recurring.commitments.length === 0 ? (
           <p className="py-3 text-center text-xs text-ink-secondary">
             Tell the agent about subscriptions — e.g. “I pay 649 for Netflix monthly.”
@@ -545,7 +558,7 @@ export default function InsightsPage() {
 
   const heatmapCard = (
     <Card>
-      <CardTitle>Half a year of spending</CardTitle>
+      <CardTitle icon={CalendarDays}>Half a year of spending</CardTitle>
       {heat === null ? (
         <div className="h-24 animate-pulse rounded-lg bg-surface-raised" />
       ) : (

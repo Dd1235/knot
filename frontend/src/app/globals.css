@@ -41,7 +41,12 @@
   --info-soft: rgba(107, 166, 224, 0.14);
   --info-line: rgba(107, 166, 224, 0.34);
 
-  --chart-spend: #ff8140;
+  /* Same hue as the heat ramp so the page reads as one family, but far down
+     in chroma. The daily bars are a reference the eye scans past, and at full
+     intensity they were the loudest thing on a page where the categorical
+     hues are the ones actually encoding something. Saturation should follow
+     importance. */
+  --chart-spend: #9d7665;
   --chart-1: #3987e5;
   --chart-2: #b55fba;
   --chart-3: #199e70;
@@ -101,7 +106,7 @@
     --info-soft: rgba(42, 107, 184, 0.12);
     --info-line: rgba(42, 107, 184, 0.3);
 
-    --chart-spend: #bf4b00;
+    --chart-spend: #996f5d;
     --chart-1: #2a78d6;
     --chart-2: #aa50b1;
     --chart-3: #1baf7a;
@@ -154,7 +159,7 @@
   --info-soft: rgba(42, 107, 184, 0.12);
   --info-line: rgba(42, 107, 184, 0.3);
 
-  --chart-spend: #bf4b00;
+  --chart-spend: #996f5d;
   --chart-1: #2a78d6;
   --chart-2: #aa50b1;
   --chart-3: #1baf7a;
@@ -206,7 +211,7 @@
   --info-soft: rgba(107, 166, 224, 0.14);
   --info-line: rgba(107, 166, 224, 0.34);
 
-  --chart-spend: #ff8140;
+  --chart-spend: #9d7665;
   --chart-1: #3987e5;
   --chart-2: #b55fba;
   --chart-3: #199e70;
