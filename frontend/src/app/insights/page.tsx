@@ -17,12 +17,14 @@ import {
 const PERIODS = [7, 30, 90] as const;
 type Period = (typeof PERIODS)[number];
 
-// Fixed group → color mapping (never index-cycled).
+// Fixed group → color mapping (never index-cycled). `other` is the residual
+// bucket and is deliberately achromatic — no fourth hue clears the all-pairs
+// CVD floor on this surface, and a residual must never impersonate a series.
 const GROUP_COLORS: Record<string, string> = {
-  essentials: "#3987e5",
-  discretionary: "#d95926",
-  savings_invest: "#199e70",
-  other: "#c98500",
+  essentials: "var(--chart-1)",
+  discretionary: "var(--chart-2)",
+  savings_invest: "var(--chart-3)",
+  other: "var(--chart-other)",
 };
 
 const GROUP_LABELS: Record<string, string> = {
@@ -36,10 +38,6 @@ const CADENCE_SHORT: Record<string, string> = {
   daily: "day",
 };
 
-const AQUA = "#199e70";
-const GRID = "#2c2c2a";
-const BASELINE = "#383835";
-const TICK_INK = "#898781";
 
 const shortDate = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", {
@@ -132,13 +130,13 @@ function DailySpendChart({ daily }: { daily: DailyFlow[] }) {
             {/* gridlines: hairlines at max + mid only; the baseline is its own stroke */}
             {!allZero && (
               <>
-                <line x1={PAD_L} x2={width - PAD_R} y1={TOP} y2={TOP} stroke={GRID} strokeWidth={1} />
+                <line x1={PAD_L} x2={width - PAD_R} y1={TOP} y2={TOP} className="stroke-chart-grid" strokeWidth={1} />
                 <line
                   x1={PAD_L}
                   x2={width - PAD_R}
                   y1={TOP + plotH / 2}
                   y2={TOP + plotH / 2}
-                  stroke={GRID}
+                  className="stroke-chart-grid"
                   strokeWidth={1}
                 />
               </>
@@ -152,15 +150,15 @@ function DailySpendChart({ daily }: { daily: DailyFlow[] }) {
                   <path
                     key={d.date}
                     d={barPath(colX(i) + 1, barTop(values[i]), barW, h, baseline)}
-                    fill={AQUA}
+                    className="fill-chart-spend"
                     opacity={hover === null || hover === i ? 1 : 0.55}
                   />
                 );
               })}
             {/* baseline */}
-            <line x1={PAD_L} x2={width - PAD_R} y1={baseline} y2={baseline} stroke={BASELINE} strokeWidth={1} />
+            <line x1={PAD_L} x2={width - PAD_R} y1={baseline} y2={baseline} className="stroke-chart-axis" strokeWidth={1} />
             {/* one y-axis: 3 tick labels max */}
-            <text x={PAD_L - 6} y={baseline} dy="3.5" textAnchor="end" fontSize={10} fill={TICK_INK}>
+            <text x={PAD_L - 6} y={baseline} dy="3.5" textAnchor="end" fontSize={10} className="fill-chart-tick tabular-nums">
               0
             </text>
             {showMid && (
@@ -170,13 +168,13 @@ function DailySpendChart({ daily }: { daily: DailyFlow[] }) {
                 dy="3.5"
                 textAnchor="end"
                 fontSize={10}
-                fill={TICK_INK}
+                className="fill-chart-tick tabular-nums"
               >
                 {midLabel}
               </text>
             )}
             {!allZero && (
-              <text x={PAD_L - 6} y={TOP} dy="3.5" textAnchor="end" fontSize={10} fill={TICK_INK}>
+              <text x={PAD_L - 6} y={TOP} dy="3.5" textAnchor="end" fontSize={10} className="fill-chart-tick tabular-nums">
                 {maxLabel}
               </text>
             )}
@@ -188,7 +186,7 @@ function DailySpendChart({ daily }: { daily: DailyFlow[] }) {
                 y={H - 4}
                 textAnchor={i === 0 ? "start" : i === last ? "end" : "middle"}
                 fontSize={10}
-                fill={TICK_INK}
+                className="fill-chart-tick tabular-nums"
               >
                 {shortDate(daily[i].date)}
               </text>
@@ -200,7 +198,7 @@ function DailySpendChart({ daily }: { daily: DailyFlow[] }) {
                 y={barTop(rawMax) - 4}
                 textAnchor="middle"
                 fontSize={10}
-                fill="#a1a1aa"
+                className="fill-chart-label tabular-nums"
               >
                 {`₹${compact(rawMax)}`}
               </text>
@@ -208,7 +206,7 @@ function DailySpendChart({ daily }: { daily: DailyFlow[] }) {
           </svg>
 
           {allZero && (
-            <p className="absolute inset-x-0 top-[45%] -translate-y-1/2 text-center text-xs text-zinc-500">
+            <p className="absolute inset-x-0 top-[45%] -translate-y-1/2 text-center text-xs text-ink-secondary">
               No spends in this period.
             </p>
           )}
@@ -221,10 +219,14 @@ function DailySpendChart({ daily }: { daily: DailyFlow[] }) {
               onMouseLeave={() => setHover(null)}
             >
               {daily.map((d, i) => (
-                <div
+                <button
                   key={d.date}
-                  className="h-full flex-1"
+                  type="button"
+                  aria-label={`${shortDate(d.date)}: ${inr(d.spend)}`}
+                  className="h-full flex-1 cursor-default"
                   onMouseEnter={() => setHover(i)}
+                  onFocus={() => setHover(i)}
+                  onBlur={() => setHover(null)}
                   onTouchStart={() => setHover(hover === i ? null : i)}
                 />
               ))}
@@ -233,7 +235,7 @@ function DailySpendChart({ daily }: { daily: DailyFlow[] }) {
 
           {hover !== null && daily[hover] && (
             <div
-              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1 text-[11px] text-zinc-200 tabular-nums"
+              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-line-strong bg-surface-raised px-2 py-1 text-[11px] text-ink-primary tabular-nums"
               style={{ left: tooltipLeft, top: barTop(values[hover]) - 6 }}
             >
               {shortDate(daily[hover].date)} — {inr(values[hover])}
@@ -255,28 +257,28 @@ function StatTile({
   accent?: string;
 }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 text-center">
-      <p className={`truncate text-xl font-semibold tabular-nums ${accent ?? "text-zinc-100"}`}>
+    <div className="rounded-xl border border-line bg-surface-card p-3 text-center">
+      <p className={`truncate text-xl font-semibold tabular-nums ${accent ?? "text-ink-primary"}`}>
         {value}
       </p>
-      <p className="mt-0.5 text-[11px] uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="mt-0.5 text-[11px] uppercase tracking-wide text-ink-secondary">{label}</p>
     </div>
   );
 }
 
 function CardTitle({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-2.5 text-[11px] uppercase tracking-wide text-zinc-500">{children}</p>
+    <p className="mb-2.5 text-[11px] uppercase tracking-wide text-ink-secondary">{children}</p>
   );
 }
 
 function Card({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">{children}</div>;
+  return <div className="rounded-xl border border-line bg-surface-card p-3">{children}</div>;
 }
 
 function SkeletonCard({ className }: { className: string }) {
   return (
-    <div className={`animate-pulse rounded-xl border border-zinc-800 bg-zinc-900/60 ${className}`} />
+    <div className={`animate-pulse rounded-xl border border-line bg-surface-card ${className}`} />
   );
 }
 
@@ -344,12 +346,12 @@ export default function InsightsPage() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <header className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur px-4 pt-[env(safe-area-inset-top)]">
+      <header className="sticky top-0 z-10 border-b border-line bg-surface-base/90 backdrop-blur px-4 pt-[env(safe-area-inset-top)]">
         <div className="flex h-14 items-center justify-between">
           <h1 className="text-lg font-semibold tracking-tight">📊 Insights</h1>
           <Link
             href="/"
-            className="rounded-lg border border-zinc-800 px-2.5 py-1.5 text-xs text-zinc-400 active:bg-zinc-900"
+            className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-secondary active:bg-surface-card"
           >
             ← chat
           </Link>
@@ -361,8 +363,8 @@ export default function InsightsPage() {
               onClick={() => setDays(p)}
               className={`rounded-full px-3 py-1.5 text-xs ${
                 days === p
-                  ? "bg-emerald-600 text-white"
-                  : "border border-zinc-800 text-zinc-400 active:bg-zinc-900"
+                  ? "bg-brand text-ink-on-brand"
+                  : "border border-line text-ink-secondary active:bg-surface-card"
               }`}
             >
               {p} days
@@ -385,7 +387,7 @@ export default function InsightsPage() {
             <SkeletonCard className="h-40" />
           </>
         ) : !summary ? (
-          <p className="mt-10 text-center text-sm text-zinc-500">
+          <p className="mt-10 text-center text-sm text-ink-secondary">
             Couldn&apos;t load insights — check the connection and switch periods to retry.
           </p>
         ) : (
@@ -396,7 +398,7 @@ export default function InsightsPage() {
               <StatTile
                 label="net cashflow"
                 value={net > 0 ? `+${inr(summary.net_cashflow)}` : inr(summary.net_cashflow)}
-                accent={net > 0 ? "text-emerald-400" : net < 0 ? "text-rose-400" : undefined}
+                accent={net > 0 ? "text-positive" : net < 0 ? "text-negative" : undefined}
               />
               <StatTile label="net worth" value={inr(summary.net_worth.net_worth)} />
             </div>
@@ -409,7 +411,7 @@ export default function InsightsPage() {
             <Card>
               <CardTitle>Spending groups</CardTitle>
               {summary.by_group.length === 0 ? (
-                <p className="py-3 text-center text-xs text-zinc-500">
+                <p className="py-3 text-center text-xs text-ink-secondary">
                   No spending yet in this window.
                 </p>
               ) : (
@@ -417,17 +419,17 @@ export default function InsightsPage() {
                   {summary.by_group.map((g) => (
                     <div key={g.grp}>
                       <div className="flex items-baseline justify-between gap-2 text-sm">
-                        <span className="min-w-0 truncate text-zinc-300">
+                        <span className="min-w-0 truncate text-ink-secondary">
                           {GROUP_LABELS[g.grp] ?? g.grp}
                         </span>
-                        <span className="shrink-0 tabular-nums text-zinc-100">
+                        <span className="shrink-0 tabular-nums text-ink-primary">
                           {inr(g.amount)}{" "}
-                          <span className="text-[11px] text-zinc-500">
+                          <span className="text-[11px] text-ink-secondary">
                             {Math.round(g.pct_of_spend * 10) / 10}%
                           </span>
                         </span>
                       </div>
-                      <div className="mt-1 h-2 rounded-full bg-zinc-800">
+                      <div className="mt-1 h-2 rounded-full bg-surface-raised">
                         <div
                           className="h-2 rounded-full"
                           style={{
@@ -445,24 +447,24 @@ export default function InsightsPage() {
             <Card>
               <CardTitle>Top categories</CardTitle>
               {categories.length === 0 ? (
-                <p className="py-3 text-center text-xs text-zinc-500">
+                <p className="py-3 text-center text-xs text-ink-secondary">
                   Nothing spent yet — record a transaction in chat.
                 </p>
               ) : (
                 <div className="space-y-2.5">
                   {categories.map((c) => (
                     <div key={c.category} className="flex items-center gap-2.5 text-sm">
-                      <span className="w-24 shrink-0 truncate text-zinc-300">{c.category}</span>
-                      <div className="h-1 min-w-0 flex-1 rounded-full bg-zinc-800">
+                      <span className="w-24 shrink-0 truncate text-ink-secondary">{c.category}</span>
+                      <div className="h-1 min-w-0 flex-1 rounded-full bg-surface-raised">
                         <div
                           className="h-1 rounded-full"
                           style={{
                             width: `${maxCategory > 0 ? Math.max((Number(c.amount) / maxCategory) * 100, 2) : 0}%`,
-                            backgroundColor: AQUA,
+                            backgroundColor: "var(--chart-spend)",
                           }}
                         />
                       </div>
-                      <span className="shrink-0 text-right tabular-nums text-zinc-100">
+                      <span className="shrink-0 text-right tabular-nums text-ink-primary">
                         {inr(c.amount)}
                       </span>
                     </div>
@@ -479,7 +481,7 @@ export default function InsightsPage() {
           <Card>
             <CardTitle>Recurring</CardTitle>
             {recurring.commitments.length === 0 ? (
-              <p className="py-3 text-center text-xs text-zinc-500">
+              <p className="py-3 text-center text-xs text-ink-secondary">
                 Tell the agent about subscriptions — e.g. “I pay 649 for Netflix monthly.”
               </p>
             ) : (
@@ -492,16 +494,16 @@ export default function InsightsPage() {
                         c.active ? "" : "opacity-50"
                       }`}
                     >
-                      <span className="min-w-0 truncate text-zinc-300">{c.name}</span>
-                      <span className="shrink-0 tabular-nums text-zinc-100">
+                      <span className="min-w-0 truncate text-ink-secondary">{c.name}</span>
+                      <span className="shrink-0 tabular-nums text-ink-primary">
                         {inr(c.amount)}/{CADENCE_SHORT[c.cadence] ?? c.cadence}{" "}
-                        <span className="text-[11px] text-zinc-500">· day {c.due_day}</span>
+                        <span className="text-[11px] text-ink-secondary">· day {c.due_day}</span>
                       </span>
                     </div>
                   ))}
                 </div>
-                <p className="mt-3 border-t border-zinc-800 pt-2 text-right text-xs text-zinc-500">
-                  ≈ <span className="tabular-nums text-zinc-300">{inr(recurring.monthly_total)}</span>
+                <p className="mt-3 border-t border-line pt-2 text-right text-xs text-ink-secondary">
+                  ≈ <span className="tabular-nums text-ink-secondary">{inr(recurring.monthly_total)}</span>
                   /month committed
                 </p>
               </>
@@ -515,7 +517,7 @@ export default function InsightsPage() {
           <Card>
             <CardTitle>Receivables</CardTitle>
             {people.length === 0 ? (
-              <p className="py-3 text-center text-xs text-zinc-500">
+              <p className="py-3 text-center text-xs text-ink-secondary">
                 All settled — no one owes anyone.
               </p>
             ) : (
@@ -527,12 +529,12 @@ export default function InsightsPage() {
                       key={p.display_name}
                       className="flex items-center justify-between gap-3 text-sm"
                     >
-                      <span className="min-w-0 truncate text-zinc-300">{p.display_name}</span>
+                      <span className="min-w-0 truncate text-ink-secondary">{p.display_name}</span>
                       <span
                         className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs tabular-nums ${
                           owed
-                            ? "border-emerald-900 bg-emerald-950/40 text-emerald-300"
-                            : "border-rose-900 bg-rose-950/40 text-rose-300"
+                            ? "border-positive-line bg-positive-soft text-positive"
+                            : "border-negative-line bg-negative-soft text-negative"
                         }`}
                       >
                         {owed ? "owes you" : "you owe"} {inr(Math.abs(Number(p.balance)))}
@@ -548,12 +550,12 @@ export default function InsightsPage() {
         <button
           onClick={onExport}
           disabled={exporting}
-          className="w-full rounded-xl border border-zinc-800 bg-zinc-900/60 py-3 text-sm text-zinc-300 active:bg-zinc-900 disabled:opacity-50"
+          className="w-full rounded-xl border border-line bg-surface-card py-3 text-sm text-ink-secondary active:bg-surface-card disabled:opacity-50"
         >
           {exporting ? "Exporting…" : "⬇ Export CSV (90d)"}
         </button>
         {exportError && (
-          <p className="text-center text-xs text-rose-400">Export failed — try again.</p>
+          <p className="text-center text-xs text-negative">Export failed — try again.</p>
         )}
         <div className="h-[env(safe-area-inset-bottom)]" />
       </main>
