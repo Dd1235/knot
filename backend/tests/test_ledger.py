@@ -125,3 +125,47 @@ async def test_concurrent_settlement_race_keeps_ledger_balanced(user):
     assert len(rejections) == 4
     assert (await service.person_balances(user))[0]["balance"] == "0.00"
     assert await service.ledger_sum(user) == 0
+
+
+async def test_borrowing_does_not_render_as_spending(user):
+    """The direction CASE fell through to 'spent' for anything it did not
+    recognise, so "borrowed 5,000 from Priya" displayed as money going out."""
+    await service.post_transaction(
+        user, "borrowed from Priya",
+        [LegSpec("cash", Decimal("5000")), LegSpec("liability:priya", Decimal("-5000"))],
+        category="loan",
+    )
+    row = (await service.recent_transactions(user, limit=1))[0]
+    assert row["direction"] == "borrowed"
+
+
+async def test_withdrawing_cash_is_a_move_not_a_spend(user):
+    await service.post_transaction(
+        user, "ATM", [LegSpec("cash", Decimal("2000")), LegSpec("bank", Decimal("-2000"))],
+        category="withdrawal",
+    )
+    assert (await service.recent_transactions(user, limit=1))[0]["direction"] == "transfer"
+
+
+async def test_a_sip_reads_as_invested(user):
+    await service.post_transaction(
+        user, "Monthly SIP",
+        [LegSpec("invest:sip", Decimal("5000")), LegSpec("bank", Decimal("-5000"))],
+        category="sip",
+    )
+    assert (await service.recent_transactions(user, limit=1))[0]["direction"] == "invested"
+
+
+async def test_one_utterance_is_one_transaction(user):
+    """Two clients transcribing the same sentence must not post it twice."""
+    key = "same-utterance-key"
+    legs = [LegSpec("expense:food", Decimal("120")), LegSpec("cash", Decimal("-120"))]
+    first = await service.post_transaction(
+        user, "chai", legs, category="food", idempotency_key=key
+    )
+    second = await service.post_transaction(
+        user, "chai", legs, category="food", idempotency_key=key
+    )
+    assert second.deduplicated
+    assert second.id == first.id
+    assert len(await service.recent_transactions(user, limit=10)) == 1

@@ -13,6 +13,40 @@ This set must stay in step with the `savings_invest` rows in
 migration 0004 — `tests/test_categories.py` asserts it against the database.
 """
 
+# The whole taxonomy, mirroring the category_groups rows seeded by migrations
+# 0004 and 0008. It lives here as well as in the database because the agent's
+# tool schema is built at import time and cannot read a table — and because a
+# hand-maintained copy of it in the tool description had already drifted to 24
+# of 33 categories. The model cannot route to a category it is never shown.
+#
+# tests/test_categories.py asserts this equals the database, so drift fails CI.
+TAXONOMY: dict[str, tuple[str, ...]] = {
+    "essentials": (
+        "rent", "groceries", "utilities", "transport", "phone", "internet",
+        "medical", "education", "emi",
+    ),
+    "discretionary": (
+        "food", "entertainment", "shopping", "subscriptions", "travel",
+        "gifts", "coffee",
+    ),
+    "savings_invest": (
+        "sip", "mutual_funds", "stocks", "fd", "rd", "savings", "nps",
+        "ppf", "elss", "gold", "crypto", "bonds",
+    ),
+    "income": ("salary", "freelance", "interest", "cashback"),
+    "transfer": ("withdrawal", "opening_balance"),
+}
+
+ALL_CATEGORIES: tuple[str, ...] = tuple(
+    c for group in TAXONOMY.values() for c in group
+)
+
+
+def hint() -> str:
+    """The category list shown to the model, generated so it cannot go stale."""
+    return ", ".join(ALL_CATEGORIES)
+
+
 INVESTMENT_CATEGORIES = frozenset(
     {
         "sip",

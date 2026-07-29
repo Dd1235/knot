@@ -21,13 +21,21 @@ def test_investment_routes_to_an_asset_not_an_expense():
 
 @pytest.mark.asyncio
 async def test_python_taxonomy_matches_the_database():
-    """Two sources of truth drift. This makes drift a test failure."""
+    """Two sources of truth drift. This makes drift a test failure.
+
+    Widened from savings_invest to the whole taxonomy after the hand-written
+    category list in the agent's tool schema was found to be nine categories
+    behind the database — the model could not route to what it was never shown.
+    """
     async with pool().connection() as conn:
-        cur = await conn.execute(
-            "SELECT category FROM category_groups WHERE grp = 'savings_invest'"
-        )
-        in_db = {r[0] for r in await cur.fetchall()}
-    assert in_db == set(categories.INVESTMENT_CATEGORIES)
+        cur = await conn.execute("SELECT category, grp FROM category_groups")
+        in_db: dict[str, str] = dict(await cur.fetchall())
+
+    in_python = {c: grp for grp, cats in categories.TAXONOMY.items() for c in cats}
+    assert in_db == in_python
+    assert set(categories.INVESTMENT_CATEGORIES) == set(categories.TAXONOMY["savings_invest"])
+    # Whatever the model is shown must be a category the database groups.
+    assert all(c in in_db for c in categories.hint().split(", "))
 
 
 @pytest.mark.asyncio

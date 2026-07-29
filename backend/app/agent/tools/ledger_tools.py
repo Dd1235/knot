@@ -1,5 +1,6 @@
 """Ledger tools: translate agent intent into balanced double-entry legs."""
 
+import hashlib
 from datetime import datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -16,6 +17,28 @@ IST = ZoneInfo("Asia/Kolkata")
 
 def _person_account(name: str) -> str:
     return f"receivable:{name.strip().lower()}"
+
+
+def _utterance_key(ctx: ToolContext, args: dict, amount: Decimal) -> str:
+    """One spoken sentence is one transaction, however many clients heard it.
+
+    ARCHITECTURE.md already claimed idempotency keys stopped a double-tapped
+    voice command from double-posting; this is the call site that was missing,
+    and it mattered because a duplicated voice session dispatches every tool
+    twice.
+
+    Keyed on what the user said rather than on a client-supplied id, so two
+    independent sessions transcribing one utterance collide deliberately. Two
+    genuine chais at the same price a minute apart differ by occurred_at.
+    """
+    parts = [
+        ctx.session_id or "",
+        (ctx.user_message or args.get("description", "")).strip().lower(),
+        args.get("direction", ""),
+        str(amount),
+        args.get("occurred_at") or "",
+    ]
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:40]
 
 
 def _parse_occurred_at(value: str | None) -> datetime | None:
@@ -83,11 +106,8 @@ def _build_legs(
             "category": {
                 "type": "string",
                 "description": (
-                    "Lowercase category; prefer one of: rent, groceries, "
-                    "utilities, transport, phone, internet, medical, education, "
-                    "emi, food, entertainment, shopping, subscriptions, travel, "
-                    "gifts, coffee, sip, mutual_funds, stocks, fd, savings, "
-                    "salary, freelance, interest, cashback"
+                    f"Lowercase category; prefer one of: {categories.hint()}. "
+                    "Invent a new one only if none fits."
                 ),
             },
             "split_with": {
@@ -122,6 +142,7 @@ async def record_transaction(ctx: ToolContext, args: dict) -> dict:
         raw_input=ctx.user_message,
         category=category,
         occurred_at=_parse_occurred_at(args.get("occurred_at")),
+        idempotency_key=_utterance_key(ctx, args, amount),
     )
     event_text = (
         f"{args['description']} (₹{amount}, {args['direction']}, category {category}"
