@@ -161,6 +161,32 @@ async def settle_up(ctx: ToolContext, args: dict) -> dict:
 
 
 @register(
+    "void_transaction",
+    "Reverse a wrongly recorded transaction with a negating entry (nothing is "
+    "deleted). Use when the user disputes an entry ('I never spent that'). Find "
+    "the transaction_id via list_recent_transactions first and confirm with the "
+    "user before voiding.",
+    {
+        "type": "object",
+        "properties": {
+            "transaction_id": {"type": "string"},
+            "reason": {"type": "string", "description": "Short reason, e.g. 'user disputed'"},
+        },
+        "required": ["transaction_id"],
+    },
+)
+async def void_transaction(ctx: ToolContext, args: dict) -> dict:
+    posted = await service.void_transaction(
+        ctx.user_handle, args["transaction_id"], args.get("reason", "")
+    )
+    return {
+        "reversal_id": str(posted.id),
+        "description": posted.description,
+        "people_balances": await service.person_balances(ctx.user_handle),
+    }
+
+
+@register(
     "get_balances",
     "Get current balances: who owes what, and per-account totals. Use for "
     "questions like 'did X pay me back?' or 'how much do I have outstanding?'",
