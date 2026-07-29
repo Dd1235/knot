@@ -47,3 +47,12 @@ The MVP `/chat` returns complete JSON. Streaming with tool-call delta assembly i
 
 ### D14. Cross-request history replays text only
 When a session continues, the agent re-reads prior turns as plain user/assistant text — tool-call internals are not replayed. Tool outcomes live in the ledger itself, which the agent re-queries; replaying stale tool results would be a second source of truth that can lie.
+
+### D15. Prompt examples must be name-free (found via the context trace)
+The rent-split demo "worked" on the first try — but the context trace showed NO memory was injected. The model had copied "Arun and Priya" from a few-shot example in our own system prompt: a fake memory win that would silently split rent with the wrong people for any real user. Fixed with placeholder names and an explicit "names come only from the user's words or injected memory" rule. Lesson: the injection trace isn't just inspector UI — it's how we catch the agent lying about remembering.
+
+### D16. Procedural triggers embed trigger + instruction, threshold measured not guessed
+Models write unreliable trigger phrases (declarative restatements, single words) no matter what the tool schema says. We embed `"{trigger}. {instruction}"` — the instruction carries the key nouns real future messages share. Measured on text-embedding-3-small/512: related casual phrasings land at 0.57–0.98 L2, unrelated at 1.11+; threshold 1.05. Over-injection is cheap (the model ignores irrelevant rules); under-injection silently loses taught behavior.
+
+### D17. gpt-4.1-mini as the dev-mode default
+gpt-4o-mini recorded the taught rent split in only 1 of 3 identical runs (and once claimed "Done!" without calling any tool — countered by an explicit "never say recorded unless a tool succeeded this turn" prompt rule). gpt-4.1-mini: 3 of 3 with the rule injected each time. ~4x the price of 4o-mini, still pennies; Bedrock Claude remains the judged-demo model.
