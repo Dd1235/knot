@@ -55,6 +55,7 @@ async def run_turn_stream(ctx: ToolContext, history: list[dict], user_message: s
     partial text. The final "done" event carries the reply, tool events, and
     the memory-injection trace.
     """
+    ctx.user_message = user_message
     provider = get_provider()
     start = time.perf_counter()
     assembled = await assemble(ctx.user_handle, user_message)

@@ -117,7 +117,7 @@ async def record_transaction(ctx: ToolContext, args: dict) -> dict:
         ctx.user_handle,
         args["description"],
         legs,
-        raw_input=args.get("raw_input", ""),
+        raw_input=ctx.user_message,
         category=category,
         occurred_at=_parse_occurred_at(args.get("occurred_at")),
     )

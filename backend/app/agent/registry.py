@@ -18,6 +18,9 @@ log = logging.getLogger(__name__)
 class ToolContext:
     user_handle: str
     session_id: str
+    # What the user actually said this turn, stored verbatim on anything the
+    # agent records — the receipt for every entry in the books.
+    user_message: str = ""
 
 
 @dataclass

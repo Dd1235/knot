@@ -402,18 +402,47 @@ async def person_balances(user_handle: str) -> list[dict]:
 
 
 async def recent_transactions(user_handle: str, limit: int = 20) -> list[dict]:
+    """Rows rich enough to render without a second query: what the user
+    actually said, which spending group it belongs to, and which direction the
+    money moved."""
     async with pool().connection() as conn:
         cur = await conn.execute(
             """
-            SELECT t.id::STRING, t.occurred_at, t.description, t.category, t.source::STRING,
+            SELECT t.id::STRING, t.occurred_at, t.description, t.category,
+                   t.source::STRING, t.raw_input,
+                   COALESCE(cg.grp, 'other') AS grp,
                    (SELECT COALESCE(SUM(l.amount) FILTER (WHERE l.amount > 0), 0)
                     FROM transaction_legs AS l
                     WHERE l.transaction_id = t.id)::STRING AS amount,
+                   CASE
+                       WHEN t.metadata->>'voids' IS NOT NULL THEN 'reversal'
+                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
+                                    JOIN accounts AS a ON a.id = l.account_id
+                                    WHERE l.transaction_id = t.id
+                                      AND a.type = 'receivable' AND l.amount > 0)
+                           THEN 'lent'
+                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
+                                    JOIN accounts AS a ON a.id = l.account_id
+                                    WHERE l.transaction_id = t.id
+                                      AND a.type = 'receivable' AND l.amount < 0)
+                           THEN 'settled'
+                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
+                                    JOIN accounts AS a ON a.id = l.account_id
+                                    WHERE l.transaction_id = t.id AND a.type = 'income')
+                           THEN 'received'
+                       ELSE 'spent'
+                   END AS direction,
+                   (SELECT string_agg(p.display_name, ', ')
+                    FROM transaction_legs AS l
+                    JOIN accounts AS a ON a.id = l.account_id
+                    JOIN people AS p ON p.id = a.person_id
+                    WHERE l.transaction_id = t.id) AS people,
                    EXISTS(SELECT 1 FROM transactions AS v
                           WHERE v.user_id = t.user_id
                             AND v.metadata->>'voids' = t.id::STRING) AS voided
             FROM transactions AS t
             JOIN users AS u ON u.id = t.user_id
+            LEFT JOIN category_groups AS cg ON cg.category = t.category
             WHERE u.handle = %s
             ORDER BY t.occurred_at DESC
             LIMIT %s
