@@ -8,6 +8,7 @@ from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
 from app.api.demo import router as demo_router
+from app.api.insights import router as insights_router
 from app.api.ledger import router as ledger_router
 from app.api.memory import router as memory_router
 from app.config import get_settings
@@ -40,6 +41,7 @@ app.include_router(analytics_router)
 app.include_router(chat_router)
 app.include_router(memory_router)
 app.include_router(demo_router)
+app.include_router(insights_router)
 
 
 @app.get("/healthz")

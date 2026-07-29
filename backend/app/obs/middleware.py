@@ -34,7 +34,10 @@ async def guard(request: Request, call_next):
     # Identity/authorization is enforced per-route by app.auth.deps.current_user;
     # this layer only rate-limits the expensive (LLM-backed) endpoints.
     if path not in OPEN_PATHS and request.method == "POST":
-        if path in ("/chat", "/chat/stream", "/demo/race", "/auth/login", "/auth/signup"):
+        if path in (
+            "/chat", "/chat/stream", "/demo/race",
+            "/insights/generate", "/auth/login", "/auth/signup",
+        ):
             ip = request.client.host if request.client else "unknown"
             if _rate_limited(ip):
                 return JSONResponse({"detail": "rate limit exceeded"}, status_code=429)

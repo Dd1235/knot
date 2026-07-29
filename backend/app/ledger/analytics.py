@@ -26,22 +26,24 @@ def _money(value) -> str:
     return str(Decimal(value).quantize(TWO_PLACES))
 
 
-def _window_bounds(days: int) -> tuple[datetime, datetime, date]:
-    """Calendar-day window in IST: [start of the first day, start of tomorrow).
+def _window_bounds(days: int, offset_days: int = 0) -> tuple[datetime, datetime, date]:
+    """Calendar-day window in IST: [start of the first day, start of the day
+    after the last). `offset_days` shifts the whole window back, so the prior
+    period of equal length is `offset_days=days`.
 
     Aligning the SQL filter to the same IST day boundaries the daily spine uses
     guarantees sum(daily) == the headline totals; a rolling now()-N*24h window
     would include hours that fall outside the first spine bucket.
     """
-    today = datetime.now(IST).date()
-    start_day = today - timedelta(days=days - 1)
+    last_day = datetime.now(IST).date() - timedelta(days=offset_days)
+    start_day = last_day - timedelta(days=days - 1)
     start = datetime.combine(start_day, time.min, tzinfo=IST)
-    end = datetime.combine(today + timedelta(days=1), time.min, tzinfo=IST)
+    end = datetime.combine(last_day + timedelta(days=1), time.min, tzinfo=IST)
     return start, end, start_day
 
 
-async def summary(user_handle: str, days: int) -> dict:
-    start, end, start_day = _window_bounds(days)
+async def summary(user_handle: str, days: int, offset_days: int = 0) -> dict:
+    start, end, start_day = _window_bounds(days, offset_days)
 
     async with pool().connection() as conn:
         cur = await conn.execute(
@@ -164,7 +166,7 @@ async def summary(user_handle: str, days: int) -> dict:
 
 async def export_rows(user_handle: str, days: int) -> list[dict]:
     """One row per transaction in the window, oldest first, for CSV export."""
-    start, end, _ = _window_bounds(days)
+    start, end, _ = _window_bounds(days, 0)
     async with pool().connection() as conn:
         cur = await conn.execute(
             """
