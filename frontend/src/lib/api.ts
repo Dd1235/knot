@@ -124,8 +124,23 @@ export async function sendChatStream(
   }
 }
 
+export interface AccountBalance {
+  name: string;
+  type: string;
+  balance: string;
+}
+
 export const getBalances = () =>
-  api<{ people: PersonBalance[]; ledger_sum: string }>("/ledger/balances");
+  api<{ people: PersonBalance[]; accounts: AccountBalance[]; ledger_sum: string }>(
+    "/ledger/balances",
+  );
+
+/** Records that a person paid you back. Omit amount to clear everything. */
+export const settleUp = (person: string, amount?: string) =>
+  api<{ id: string; description: string }>("/ledger/settle", {
+    method: "POST",
+    body: JSON.stringify({ person, amount: amount ?? null }),
+  });
 
 export interface LedgerTransaction {
   id: string;

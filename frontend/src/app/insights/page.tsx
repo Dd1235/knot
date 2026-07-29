@@ -12,6 +12,7 @@ import {
   AnalyticsSummary,
   DailyFlow,
   PersonBalance,
+  AccountBalance,
   Insight,
   RecurringCommitment,
   downloadCsv,
@@ -19,6 +20,7 @@ import {
   getBalances,
   getRecurring,
   generateInsights,
+  settleUp,
   inr,
 } from "@/lib/api";
 
@@ -285,6 +287,8 @@ export default function InsightsPage() {
     monthly_total: string;
   } | null>(null);
   const [people, setPeople] = useState<PersonBalance[] | null>(null);
+  const [accounts, setAccounts] = useState<AccountBalance[]>([]);
+  const [settling, setSettling] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState(false);
 
@@ -305,6 +309,25 @@ export default function InsightsPage() {
   const loading = result === null || result.days !== days;
   const summary = loading ? null : result.summary;
 
+  const refreshBalances = () =>
+    getBalances()
+      .then((b) => {
+        setPeople(b.people.filter((p) => Number(p.balance) !== 0));
+        setAccounts(b.accounts);
+      })
+      .catch(() => {});
+
+  const onSettle = async (person: string, balance: string) => {
+    if (!window.confirm(`Record that ${person} paid you back in full?`)) return;
+    setSettling(person);
+    try {
+      await settleUp(person);
+      await refreshBalances();
+    } finally {
+      setSettling(null);
+    }
+  };
+
   const loadInsights = (refresh: boolean) => {
     setInsightsBusy(true);
     generateInsights(days, refresh)
@@ -323,7 +346,10 @@ export default function InsightsPage() {
       .then(setRecurring)
       .catch(() => setRecurring({ commitments: [], monthly_total: "0.00" }));
     getBalances()
-      .then((b) => setPeople(b.people.filter((p) => Number(p.balance) !== 0)))
+      .then((b) => {
+        setPeople(b.people.filter((p) => Number(p.balance) !== 0));
+        setAccounts(b.accounts);
+      })
       .catch(() => setPeople([]));
   }, []);
 
@@ -421,6 +447,33 @@ export default function InsightsPage() {
               />
               <Stat label="net worth" value={<Money value={summary.net_worth.net_worth} />} />
             </div>
+
+            <Card>
+              <CardTitle>Position</CardTitle>
+              <dl className="divide-y divide-line text-sm">
+                {[
+                  { label: "assets", value: summary.net_worth.assets },
+                  { label: "liabilities", value: summary.net_worth.liabilities },
+                  {
+                    // Every spendable account, not just the one named "cash" —
+                    // an opening balance usually lands in "bank".
+                    label: "in accounts",
+                    value: String(
+                      accounts
+                        .filter((a) => a.type === "asset")
+                        .reduce((sum, a) => sum + Number(a.balance), 0),
+                    ),
+                  },
+                ].map((row) => (
+                  <div key={row.label} className="flex justify-between py-1.5">
+                    <dt className="text-ink-secondary">{row.label}</dt>
+                    <dd>
+                      <Money value={row.value} />
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </Card>
 
             <Card>
               <CardTitle>Daily spend · last {summary.window_days} days</CardTitle>
@@ -551,14 +604,28 @@ export default function InsightsPage() {
                       className="flex items-center justify-between gap-3 text-sm"
                     >
                       <span className="min-w-0 truncate text-ink-secondary">{p.display_name}</span>
-                      <span
-                        className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs tabular-nums ${
-                          owed
-                            ? "border-positive-line bg-positive-soft text-positive"
-                            : "border-negative-line bg-negative-soft text-negative"
-                        }`}
-                      >
-                        {owed ? "owes you" : "you owe"} <Money value={p.balance} tone="neutral" />
+                      <span className="flex shrink-0 items-center gap-2">
+                        {owed && (
+                          <Button
+                            variant="tonal"
+                            tone="positive"
+                            disabled={settling === p.display_name}
+                            onClick={() => onSettle(p.display_name, p.balance)}
+                            aria-label={`Settle up with ${p.display_name}`}
+                          >
+                            settle
+                          </Button>
+                        )}
+                        <span
+                          className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-xs tabular-nums ${
+                            owed
+                              ? "border-positive-line bg-positive-soft text-positive"
+                              : "border-negative-line bg-negative-soft text-negative"
+                          }`}
+                        >
+                          {owed ? "owes you" : "you owe"}{" "}
+                          <Money value={p.balance} tone="neutral" />
+                        </span>
                       </span>
                     </div>
                   );
