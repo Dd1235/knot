@@ -3,13 +3,13 @@
 From the 2026-07-29 product review. Ordered by (hackathon judging value × effort).
 Deadline: Aug 18. Items marked 🏁 are required for submission.
 
-## Now (in progress)
+## Done
 
-1. **Latency** — parallelize memory assembly; SSE streaming so tokens appear
-   immediately; live tool chips ("recording…") during the turn.
-2. **Voice-first mode** — a dedicated conversation mode: tap once, talk,
-   hear replies, keep going hands-free (auto re-listen after the agent speaks).
-   Web Speech now; Nova 2 Sonic bidirectional when AWS verification clears.
+1. ~~**Latency**~~ — parallel assembly + SSE token streaming + live tool chips
+   (first feedback 1.6–3.3s, measured).
+2. ~~**Voice-first mode**~~ — hands-free loop (listen → think → speak →
+   re-listen), tap-to-interrupt, auto-exit on silence. Web Speech now;
+   Nova 2 Sonic upgrade when AWS verification clears.
 
 ## Next
 
@@ -22,6 +22,10 @@ Deadline: Aug 18. Items marked 🏁 are required for submission.
      stored as semantic `commitment` memories + a `recurring_rules` table; agent
      detects repeats ("3rd month of Netflix ₹649 — track it as a subscription?")
      and posts them automatically with user confirmation.
+   - **Investments** (see market-research.md): buys as transfers into
+     `asset:invest:*` accounts; mark-to-market via revaluation entries against
+     `income:unrealized_gains`; net worth = assets − liabilities, always derived.
+     Manual voice-first now; Account Aggregator / broker APIs post-hackathon.
 4. **Dashboards (rule-based, no AI in the read path)** 🏁-adjacent:
    daily/weekly/monthly spend trends, category breakdown, group split,
    people/receivables aging. AI writes the states; dashboards are deterministic
