@@ -233,6 +233,12 @@ export default function ChatPage() {
               📒
             </Link>
             <Link
+              href="/insights"
+              className="rounded-lg border border-zinc-800 px-2.5 py-1.5 text-xs text-zinc-400 active:bg-zinc-900"
+            >
+              📊
+            </Link>
+            <Link
               href="/demo"
               className="rounded-lg border border-zinc-800 px-2.5 py-1.5 text-xs text-zinc-400 active:bg-zinc-900"
             >

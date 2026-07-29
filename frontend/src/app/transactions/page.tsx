@@ -73,7 +73,7 @@ export default function TransactionsPage() {
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2.5">
-                  <span className={`font-medium ${dead ? "text-zinc-500" : ""}`}>
+                  <span className={`font-medium tabular-nums ${dead ? "text-zinc-500" : ""}`}>
                     {inr(t.amount)}
                   </span>
                   {!dead && (

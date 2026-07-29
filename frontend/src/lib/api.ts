@@ -199,6 +199,87 @@ export const getEpisodic = () => api<{ events: EpisodicEvent[] }>("/memory/episo
 export const getProcedural = () => api<{ rules: ProceduralRule[] }>("/memory/procedural");
 export const getActions = () => api<{ actions: AgentAction[] }>("/memory/actions");
 
+export interface CategorySpend {
+  category: string;
+  grp: string;
+  amount: string;
+}
+
+export interface GroupSpend {
+  grp: string;
+  amount: string;
+  pct_of_spend: number;
+}
+
+export interface DailyFlow {
+  date: string;
+  spend: string;
+  income: string;
+}
+
+export interface NetWorth {
+  assets: string;
+  liabilities: string;
+  net_worth: string;
+}
+
+export interface AnalyticsSummary {
+  window_days: number;
+  total_spend: string;
+  total_income: string;
+  net_cashflow: string;
+  net_worth: NetWorth;
+  by_category: CategorySpend[];
+  by_group: GroupSpend[];
+  daily: DailyFlow[];
+}
+
+export const getAnalytics = (days: number) =>
+  api<AnalyticsSummary>(`/analytics/summary?days=${days}`);
+
+export interface RecurringCommitment {
+  id: string;
+  name: string;
+  amount: string;
+  cadence: string;
+  due_day: number;
+  category: string;
+  direction: string;
+  active: boolean;
+  last_posted_period: string | null;
+}
+
+export const getRecurring = () =>
+  api<{ commitments: RecurringCommitment[]; monthly_total: string }>("/ledger/recurring");
+
+// Fetches the CSV with auth headers (never window.open — headers would be lost)
+// and hands it to the browser as a download.
+export async function downloadCsv(days = 90, retried = false): Promise<void> {
+  const res = await fetch(`${API_BASE}/analytics/export.csv?days=${days}`, {
+    headers: {
+      "X-User": getUserHandle(),
+      ...authHeaders(),
+    },
+  });
+  if (res.status === 401 && !retried && typeof window !== "undefined") {
+    const passcode = window.prompt("Enter the Ledger passcode:");
+    if (passcode) {
+      localStorage.setItem("ledger:passcode", passcode);
+      return downloadCsv(days, true);
+    }
+  }
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ledger-export-${days}d.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const inr = (value: string | number) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
