@@ -315,3 +315,15 @@ export async function logout(): Promise<void> {
 }
 
 export const getMe = () => api<{ handle: string }>("/auth/me");
+
+export interface Insight {
+  kind: string;
+  text: string;
+  generated_at: string;
+}
+
+export const generateInsights = (days: number, refresh = false) =>
+  api<{ insights: Insight[]; cached: boolean }>(
+    `/insights/generate?days=${days}&refresh=${refresh}`,
+    { method: "POST" },
+  );

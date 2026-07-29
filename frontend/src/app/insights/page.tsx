@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import AppHeader from "@/components/ui/AppHeader";
+import Button from "@/components/ui/Button";
+import Logo from "@/components/ui/Logo";
 import Money from "@/components/ui/Money";
 import SegmentedNav from "@/components/ui/SegmentedNav";
 import Stat from "@/components/ui/Stat";
@@ -10,11 +12,13 @@ import {
   AnalyticsSummary,
   DailyFlow,
   PersonBalance,
+  Insight,
   RecurringCommitment,
   downloadCsv,
   getAnalytics,
   getBalances,
   getRecurring,
+  generateInsights,
   inr,
 } from "@/lib/api";
 
@@ -274,6 +278,8 @@ export default function InsightsPage() {
     days: number;
     summary: AnalyticsSummary | null;
   } | null>(null);
+  const [insights, setInsights] = useState<Insight[] | null>(null);
+  const [insightsBusy, setInsightsBusy] = useState(false);
   const [recurring, setRecurring] = useState<{
     commitments: RecurringCommitment[];
     monthly_total: string;
@@ -298,6 +304,19 @@ export default function InsightsPage() {
 
   const loading = result === null || result.days !== days;
   const summary = loading ? null : result.summary;
+
+  const loadInsights = (refresh: boolean) => {
+    setInsightsBusy(true);
+    generateInsights(days, refresh)
+      .then((r) => setInsights(r.insights))
+      .catch(() => setInsights([]))
+      .finally(() => setInsightsBusy(false));
+  };
+
+  useEffect(() => {
+    loadInsights(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     getRecurring()
@@ -344,6 +363,38 @@ export default function InsightsPage() {
       <main className="mx-auto w-full max-w-lg flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {loading ? (
           <>
+            {(insights === null || insights.length > 0 || insightsBusy) && (
+              <div className="hairline-gold rounded-xl border border-brand-line bg-brand-soft p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h2 className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-brand-ink">
+                    <Logo size={13} state={insightsBusy ? "thinking" : "idle"} />
+                    What I notice
+                  </h2>
+                  <Button
+                    onClick={() => loadInsights(true)}
+                    disabled={insightsBusy}
+                    aria-label="Regenerate insights"
+                  >
+                    ↻
+                  </Button>
+                </div>
+                {insights === null || insightsBusy ? (
+                  <p className="py-2 text-center text-xs text-ink-secondary">
+                    reading your books…
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {insights.map((it, i) => (
+                      <li key={i} className="flex gap-2 text-sm text-ink-primary">
+                        <span aria-hidden className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand" />
+                        <span>{it.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-2.5">
               <SkeletonCard className="h-[74px]" />
               <SkeletonCard className="h-[74px]" />
