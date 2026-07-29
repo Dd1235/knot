@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     )
 
     database_url: str
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3100"
 
     # Auth: signed session cookies. auth_required=True (production) makes the
     # acting user come only from a verified token, never a request header.

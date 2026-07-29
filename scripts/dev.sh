@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # Ledger local dev servers.
 #
-#   ./scripts/dev.sh start    start backend (:8000) + frontend (:3000), detached
-#   ./scripts/dev.sh stop     stop whatever is LISTENING on :8000 and :3000
+#   ./scripts/dev.sh start    start backend (:8000) + frontend (:3100), detached
+#   ./scripts/dev.sh stop     stop whatever is LISTENING on :8000 and :3100
 #   ./scripts/dev.sh status   health check both
 #
 # Note: `stop` kills the listener on those ports whoever owns it — if another
-# project is on :3000, stop that one first or start it on a different port.
+# project is on :3100, stop that one first or start it on a different port.
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BACKEND_PORT=8000
-FRONTEND_PORT=3000
+FRONTEND_PORT=3100
 
 listener() { lsof -ti ":$1" -sTCP:LISTEN 2>/dev/null || true; }
 
