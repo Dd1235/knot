@@ -106,3 +106,10 @@ class BedrockProvider:
                     )
                 )
         return ChatResponse(text="\n".join(text_parts) or None, tool_calls=tool_calls)
+
+    async def chat_stream(self, system: str, messages: list[dict], tools: list[dict]):
+        # Non-streaming fallback until ConverseStream is wired up: one final event.
+        response = await self.chat(system, messages, tools)
+        if response.text:
+            yield {"type": "text_delta", "text": response.text}
+        yield {"type": "response", "response": response}

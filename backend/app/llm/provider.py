@@ -9,6 +9,7 @@ format):
 Tool call dicts carry parsed-arguments: {"id": str, "name": str, "arguments": dict}.
 """
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -26,12 +27,24 @@ class ChatResponse:
     tool_calls: list[ToolCall] = field(default_factory=list)
 
 
+# chat_stream yields {"type": "text_delta", "text": str} as tokens arrive,
+# then exactly one {"type": "response", "response": ChatResponse} at the end.
+StreamEvent = dict
+
+
 class LLMProvider(Protocol):
     async def chat(
         self, system: str, messages: list[dict], tools: list[dict]
     ) -> ChatResponse:
         """Run one model call. `tools` uses neutral specs:
         [{"name", "description", "parameters": <json-schema>}]."""
+        ...
+
+    def chat_stream(
+        self, system: str, messages: list[dict], tools: list[dict]
+    ) -> AsyncIterator[StreamEvent]:
+        """Streaming variant; providers without streaming may yield only the
+        final response event."""
         ...
 
 

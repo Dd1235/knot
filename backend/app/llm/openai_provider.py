@@ -75,3 +75,44 @@ class OpenAIProvider:
             for call in (choice.tool_calls or [])
         ]
         return ChatResponse(text=choice.content, tool_calls=tool_calls)
+
+    async def chat_stream(self, system: str, messages: list[dict], tools: list[dict]):
+        stream = await self._client.chat.completions.create(
+            model=self._model,
+            messages=_to_openai_messages(system, messages),
+            tools=_to_openai_tools(tools) if tools else None,
+            temperature=0.2,
+            stream=True,
+        )
+        text_parts: list[str] = []
+        partial_calls: dict[int, dict] = {}
+        async for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            if delta is None:
+                continue
+            if delta.content:
+                text_parts.append(delta.content)
+                yield {"type": "text_delta", "text": delta.content}
+            for tc in delta.tool_calls or []:
+                entry = partial_calls.setdefault(tc.index, {"id": "", "name": "", "args": ""})
+                if tc.id:
+                    entry["id"] = tc.id
+                if tc.function and tc.function.name:
+                    entry["name"] = tc.function.name
+                if tc.function and tc.function.arguments:
+                    entry["args"] += tc.function.arguments
+
+        tool_calls = [
+            ToolCall(
+                id=entry["id"],
+                name=entry["name"],
+                arguments=json.loads(entry["args"] or "{}"),
+            )
+            for _, entry in sorted(partial_calls.items())
+        ]
+        yield {
+            "type": "response",
+            "response": ChatResponse(text="".join(text_parts) or None, tool_calls=tool_calls),
+        }
