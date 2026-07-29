@@ -10,7 +10,6 @@ from decimal import Decimal
 
 import pytest
 
-from app.db.pool import close_pool, open_pool
 from app.ledger import service
 from app.ledger.service import (
     LegSpec,
@@ -18,13 +17,6 @@ from app.ledger.service import (
     OverSettlement,
     UnbalancedTransaction,
 )
-
-
-@pytest.fixture(scope="session", autouse=True)
-async def _pool():
-    await open_pool()
-    yield
-    await close_pool()
 
 
 @pytest.fixture

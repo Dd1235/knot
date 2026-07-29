@@ -5,16 +5,8 @@ import uuid
 
 import pytest
 
-from app.db.pool import close_pool, open_pool
 from app.llm.embeddings import embed_one
 from app.memory import episodic, procedural, semantic
-
-
-@pytest.fixture(scope="session", autouse=True)
-async def _pool():
-    await open_pool()
-    yield
-    await close_pool()
 
 
 @pytest.fixture

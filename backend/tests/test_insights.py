@@ -7,20 +7,12 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.db.pool import close_pool, open_pool
 from app.insights import service
 from app.ledger import analytics
 from app.ledger import service as ledger
 from app.ledger.service import LegSpec
 
 IST = ZoneInfo("Asia/Kolkata")
-
-
-@pytest.fixture(scope="session", autouse=True)
-async def _pool():
-    await open_pool()
-    yield
-    await close_pool()
 
 
 @pytest.fixture

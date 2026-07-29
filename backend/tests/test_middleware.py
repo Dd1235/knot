@@ -36,11 +36,8 @@ async def test_cross_origin_state_change_is_blocked():
     check is what stops a forged POST from another site."""
     import httpx
 
-    from app.db.pool import open_pool
     from app.main import app
 
-    # open_pool() is idempotent; the pool is shared, so this must NOT close it.
-    await open_pool()
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         forged = await client.post(

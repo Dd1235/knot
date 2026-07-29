@@ -15,18 +15,10 @@ import pytest
 from app.agent.registry import ToolContext
 from app.agent.tools import money_tools
 from app.api.analytics import defuse_formula
-from app.db.pool import close_pool, open_pool
 from app.ledger import analytics, recurring, service
 from app.ledger.service import LegSpec
 
 IST = ZoneInfo("Asia/Kolkata")
-
-
-@pytest.fixture(scope="session", autouse=True)
-async def _pool():
-    await open_pool()
-    yield
-    await close_pool()
 
 
 @pytest.fixture
@@ -88,7 +80,13 @@ async def test_summary_totals_groups_and_net_worth(user):
     assert daily[-1]["date"] == datetime.now(IST).date().isoformat()
     assert daily[-1]["spend"] == "600.00"
     assert daily[-1]["income"] == "1000.00"
-    assert daily[0] == {"date": daily[0]["date"], "spend": "0.00", "income": "0.00"}
+    assert daily[0] == {
+        "date": daily[0]["date"],
+        "spend": "0.00",
+        "invested": "0.00",
+        "income": "0.00",
+        "txns": 0,
+    }
 
 
 async def test_voided_transaction_nets_out_of_summary(user):

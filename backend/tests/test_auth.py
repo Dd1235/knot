@@ -10,14 +10,6 @@ from app.auth import service
 from app.auth.deps import SESSION_COOKIE
 from app.auth.service import AuthError
 from app.config import get_settings
-from app.db.pool import close_pool, open_pool
-
-
-@pytest.fixture(scope="session", autouse=True)
-async def _pool():
-    await open_pool()
-    yield
-    await close_pool()
 
 
 @pytest.fixture
