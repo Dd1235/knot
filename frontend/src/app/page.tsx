@@ -12,6 +12,12 @@ import {
 } from "@/lib/api";
 import { speak, unlockSpeech, useSpeechInput } from "@/lib/speech";
 import VoiceMode from "@/components/VoiceMode";
+import AppHeader from "@/components/ui/AppHeader";
+import Button, { buttonClass } from "@/components/ui/Button";
+import Logo from "@/components/ui/Logo";
+import Money from "@/components/ui/Money";
+import Pill from "@/components/ui/Pill";
+import { inputClass } from "@/components/ui/styles";
 
 interface Message {
   role: "user" | "assistant";
@@ -23,13 +29,18 @@ interface Message {
 }
 
 const TOOL_BADGES: Record<string, string> = {
-  record_transaction: "₹ recorded",
-  settle_up: "✓ settled",
+  record_transaction: "recorded",
+  settle_up: "settled",
+  void_transaction: "voided",
   get_balances: "balances",
   list_recent_transactions: "history",
-  remember_fact: "🧠 noted",
-  learn_rule: "🧠 rule saved",
-  search_memory: "🔍 memory",
+  set_opening_balance: "opening balance",
+  track_recurring: "recurring tracked",
+  list_recurring: "recurring",
+  stop_recurring: "recurring stopped",
+  remember_fact: "noted",
+  learn_rule: "rule saved",
+  search_memory: "memory searched",
 };
 
 const SUGGESTIONS = [
@@ -47,23 +58,23 @@ function traceCount(trace?: ContextTrace): number {
 
 function TraceDetail({ trace }: { trace: ContextTrace }) {
   return (
-    <div className="mt-2 rounded-lg border border-emerald-900/60 bg-emerald-950/30 p-2.5 text-xs space-y-1.5">
+    <div className="mt-2 space-y-1.5 rounded-lg border border-brand-line bg-brand-soft p-2.5 text-xs">
       {trace.rules?.map((r, i) => (
         <p key={`r${i}`}>
-          <span className="text-emerald-400 font-medium">rule</span>{" "}
-          <span className="text-zinc-300">{r.rule.instruction}</span>
+          <span className="font-medium text-brand-ink">rule</span>{" "}
+          <span className="text-ink-secondary">{r.rule.instruction}</span>
         </p>
       ))}
       {trace.facts?.map((f, i) => (
         <p key={`f${i}`}>
-          <span className="text-emerald-400 font-medium">{f.kind}</span>{" "}
-          <span className="text-zinc-300">{f.fact}</span>
+          <span className="font-medium text-brand-ink">{f.kind}</span>{" "}
+          <span className="text-ink-secondary">{f.fact}</span>
         </p>
       ))}
       {trace.episodes?.map((e, i) => (
         <p key={`e${i}`}>
-          <span className="text-emerald-400 font-medium">event</span>{" "}
-          <span className="text-zinc-300">{e.summary}</span>
+          <span className="font-medium text-brand-ink">event</span>{" "}
+          <span className="text-ink-secondary">{e.summary}</span>
         </p>
       ))}
     </div>
@@ -79,19 +90,15 @@ function AssistantMeta({ message }: { message: Message }) {
     <div className="mt-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
         {badges.map((b, i) => (
-          <span
-            key={i}
-            className="rounded-full bg-zinc-800 px-2 py-0.5 text-[11px] text-zinc-400"
-          >
-            {b}
-          </span>
+          <Pill key={i}>{b}</Pill>
         ))}
         {memories > 0 && (
           <button
             onClick={() => setOpen(!open)}
-            className="rounded-full bg-emerald-950 px-2 py-0.5 text-[11px] text-emerald-400 border border-emerald-900"
+            aria-expanded={open}
+            className="rounded-full border border-brand-line bg-brand-soft px-2 py-0.5 text-[11px] text-brand-ink"
           >
-            🧠 {memories} {memories === 1 ? "memory" : "memories"} used {open ? "▴" : "▾"}
+            {memories} {memories === 1 ? "memory" : "memories"} used {open ? "▴" : "▾"}
           </button>
         )}
       </div>
@@ -196,80 +203,63 @@ export default function ChatPage() {
       {voiceOpen && (
         <VoiceMode onUtterance={(text) => send(text)} onClose={() => setVoiceOpen(false)} />
       )}
-      <header className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur px-4 pt-[env(safe-area-inset-top)]">
-        <div className="flex h-14 items-center justify-between">
-          <h1 className="text-lg font-semibold tracking-tight">
-            <span className="text-emerald-400">₹</span> Ledger
-          </h1>
-          <div className="flex items-center gap-2">
+      <AppHeader
+        gold
+        title={
+          <>
+            <Logo size={22} className="text-brand-ink" />
+            Knot
+          </>
+        }
+        actions={
+          <>
             {mic.supported && (
-              <button
+              <Button
+                variant="tonal"
+                tone="brand"
                 onClick={() => {
                   unlockSpeech();
                   setVoiceOpen(true);
                 }}
-                className="rounded-lg border border-sky-900 bg-sky-950/50 px-2.5 py-1.5 text-xs text-sky-400 active:bg-sky-950"
               >
-                🎧 voice
-              </button>
+                voice
+              </Button>
             )}
-            <button
-              onClick={newSession}
-              title="New session (memory persists!)"
-              className="rounded-lg border border-zinc-800 px-2.5 py-1.5 text-xs text-zinc-400 active:bg-zinc-900"
-            >
-              ↺ new session
-            </button>
-            <Link
-              href="/memory"
-              className="rounded-lg border border-emerald-900 bg-emerald-950/50 px-2.5 py-1.5 text-xs text-emerald-400 active:bg-emerald-950"
-            >
-              🧠 memory
+            <Button onClick={newSession} title="Memory persists across sessions">
+              new session
+            </Button>
+            <Link href="/memory" aria-label="Memory inspector" className={buttonClass()}>
+              memory
             </Link>
-            <Link
-              href="/transactions"
-              className="rounded-lg border border-zinc-800 px-2.5 py-1.5 text-xs text-zinc-400 active:bg-zinc-900"
-            >
-              📒
+            <Link href="/insights" aria-label="Spending insights" className={buttonClass()}>
+              insights
             </Link>
-            <Link
-              href="/insights"
-              className="rounded-lg border border-zinc-800 px-2.5 py-1.5 text-xs text-zinc-400 active:bg-zinc-900"
-            >
-              📊
+            <Link href="/transactions" aria-label="All transactions" className={buttonClass()}>
+              ledger
             </Link>
-            <Link
-              href="/demo"
-              className="rounded-lg border border-zinc-800 px-2.5 py-1.5 text-xs text-zinc-400 active:bg-zinc-900"
-            >
-              ⚡
-            </Link>
-          </div>
-        </div>
+          </>
+        }
+      >
         {people.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-2.5 text-xs">
+          <div className="flex gap-2 overflow-x-auto pb-2.5">
             {people.map((p) => (
-              <span
+              <Pill
                 key={p.display_name}
-                className={`whitespace-nowrap rounded-full px-2.5 py-1 border ${
-                  Number(p.balance) > 0
-                    ? "border-emerald-900 bg-emerald-950/40 text-emerald-300"
-                    : "border-rose-900 bg-rose-950/40 text-rose-300"
-                }`}
+                tone={Number(p.balance) > 0 ? "positive" : "negative"}
               >
                 {p.display_name} {Number(p.balance) > 0 ? "owes you" : "is owed"}{" "}
-                {inr(Math.abs(Number(p.balance)))}
-              </span>
+                <Money value={p.balance} tone="neutral" />
+              </Pill>
             ))}
           </div>
         )}
-      </header>
+      </AppHeader>
 
       <main className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 && (
           <div className="mt-10 space-y-4 text-center">
-            <p className="text-3xl">🪙</p>
-            <p className="text-sm text-zinc-400">
+            <Logo size={40} className="mx-auto text-brand-ink" />
+            <p className="text-sm text-ink-secondary">
               Tell me about your money — I&apos;ll keep the books and remember.
             </p>
             <div className="flex flex-wrap justify-center gap-2">
@@ -277,7 +267,7 @@ export default function ChatPage() {
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="rounded-full border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 active:bg-zinc-800"
+                  className="rounded-full border border-line bg-surface-card px-3 py-1.5 text-xs text-ink-secondary active:bg-surface-raised"
                 >
                   {s}
                 </button>
@@ -288,24 +278,26 @@ export default function ChatPage() {
         {messages.map((m, i) =>
           m.role === "user" ? (
             <div key={i} className="flex justify-end">
-              <div className="max-w-[85%] rounded-2xl rounded-br-md bg-emerald-700 px-3.5 py-2 text-sm">
+              <div className="max-w-[85%] rounded-2xl rounded-br-md bg-brand px-3.5 py-2 text-sm text-ink-on-brand">
                 {m.content}
               </div>
             </div>
           ) : (
             <div key={i} className="flex justify-start">
               <div className="max-w-[85%]">
-                <div className="rounded-2xl rounded-bl-md bg-zinc-900 border border-zinc-800 px-3.5 py-2 text-sm whitespace-pre-wrap">
+                <div className="whitespace-pre-wrap rounded-2xl rounded-bl-md border border-line bg-surface-card px-3.5 py-2 text-sm">
                   {m.content ||
                     (m.streaming && (
-                      <span className="text-zinc-500 animate-pulse">
+                      <span className="flex items-center gap-2 text-ink-secondary">
+                        <Logo size={16} state="thinking" className="text-brand-ink" />
                         {m.liveTools?.length
-                          ? `${TOOL_BADGES[m.liveTools[m.liveTools.length - 1]] ?? m.liveTools[m.liveTools.length - 1]}…`
-                          : "…"}
+                          ? (TOOL_BADGES[m.liveTools[m.liveTools.length - 1]] ??
+                            m.liveTools[m.liveTools.length - 1])
+                          : "thinking"}
                       </span>
                     ))}
                   {m.streaming && m.content && (
-                    <span className="animate-pulse text-emerald-500">▍</span>
+                    <span className="animate-pulse text-brand-ink">▍</span>
                   )}
                 </div>
                 <AssistantMeta message={m} />
@@ -316,7 +308,7 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </main>
 
-      <footer className="border-t border-zinc-800 bg-zinc-950 px-4 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+      <footer className="border-t border-line bg-surface-base px-4 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -328,29 +320,29 @@ export default function ChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={mic.listening ? "listening…" : "lent Priya 500 for lunch…"}
-            className="flex-1 rounded-full border border-zinc-800 bg-zinc-900 px-4 py-2.5 text-sm outline-none placeholder:text-zinc-600 focus:border-emerald-800"
+            aria-label="Message"
+            className={`${inputClass} flex-1 rounded-full py-2.5`}
           />
           {mic.supported && (
-            <button
-              type="button"
+            <Button
+              variant="tonal"
+              tone={mic.listening ? "negative" : "neutral"}
               onClick={mic.listening ? mic.stop : mic.start}
-              title={mic.listening ? "Stop listening" : "Speak"}
-              className={`rounded-full px-3.5 py-2.5 text-sm border ${
-                mic.listening
-                  ? "border-rose-700 bg-rose-950/60 text-rose-400 animate-pulse"
-                  : "border-zinc-800 bg-zinc-900 text-zinc-300 active:bg-zinc-800"
-              }`}
+              aria-label={mic.listening ? "Stop listening" : "Speak"}
+              className={`rounded-full px-3.5 py-2.5 ${mic.listening ? "animate-pulse" : ""}`}
             >
               {mic.listening ? "■" : "🎙"}
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             type="submit"
+            variant="primary"
+            size="md"
             disabled={busy || !input.trim()}
-            className="rounded-full bg-emerald-600 px-4 py-2.5 text-sm font-medium disabled:opacity-40 active:bg-emerald-700"
+            className="rounded-full"
           >
             Send
-          </button>
+          </Button>
         </form>
       </footer>
     </div>
