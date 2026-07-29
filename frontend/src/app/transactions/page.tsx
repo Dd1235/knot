@@ -45,6 +45,15 @@ function cleanName(description: string): { name: string; auto: boolean } {
   return m ? { name: m[1], auto: true } : { name: description, auto: false };
 }
 
+/** The user's own words, but only when they add something. Seeded and
+ * short-form entries produce a raw_input of "saloon 375", which just repeats
+ * the row and then truncates mid-word. */
+function saidSomething(raw: string, description: string): boolean {
+  if (!raw) return false;
+  const stripped = raw.toLowerCase().replace(description.toLowerCase(), "");
+  return /[a-z]{3,}/.test(stripped);
+}
+
 function Badge({ children }: { children: React.ReactNode }) {
   return (
     <span className="rounded border border-line px-1 py-px text-[10px] uppercase tracking-wide text-ink-muted">
@@ -175,12 +184,17 @@ export default function TransactionsPage() {
                           {t.people && (
                             <span className="shrink-0 text-ink-secondary">· {t.people}</span>
                           )}
+                          {/* No `voice` badge: speech is how this app is
+                              meant to be used, so badging it marks every row
+                              and therefore none. `auto` is worth saying —
+                              nobody typed that one. */}
                           {auto && <Badge>auto</Badge>}
-                          {t.source === "voice" && <Badge>voice</Badge>}
                         </p>
                         <p className="mt-0.5 truncate text-[11px] text-ink-muted">
                           {t.category} · {timeOf(t.occurred_at)}
-                          {t.raw_input && <span> · “{t.raw_input}”</span>}
+                          {saidSomething(t.raw_input, name) && (
+                            <span> · “{t.raw_input}”</span>
+                          )}
                         </p>
                         {/* Written free, on the LLM call the memory writer
                             already makes. Present on a minority of rows by
