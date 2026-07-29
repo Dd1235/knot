@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Money from "@/components/ui/Money";
+import Stat from "@/components/ui/Stat";
 import {
   AnalyticsSummary,
   DailyFlow,
@@ -238,30 +240,11 @@ function DailySpendChart({ daily }: { daily: DailyFlow[] }) {
               className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-line-strong bg-surface-raised px-2 py-1 text-[11px] text-ink-primary tabular-nums"
               style={{ left: tooltipLeft, top: barTop(values[hover]) - 6 }}
             >
-              {shortDate(daily[hover].date)} — {inr(values[hover])}
+              {shortDate(daily[hover].date)} — <Money value={values[hover]} />
             </div>
           )}
         </>
       )}
-    </div>
-  );
-}
-
-function StatTile({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: string;
-}) {
-  return (
-    <div className="rounded-xl border border-line bg-surface-card p-3 text-center">
-      <p className={`truncate text-xl font-semibold tabular-nums ${accent ?? "text-ink-primary"}`}>
-        {value}
-      </p>
-      <p className="mt-0.5 text-[11px] uppercase tracking-wide text-ink-secondary">{label}</p>
     </div>
   );
 }
@@ -393,14 +376,14 @@ export default function InsightsPage() {
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2.5">
-              <StatTile label="spent" value={inr(summary.total_spend)} />
-              <StatTile label="income" value={inr(summary.total_income)} />
-              <StatTile
+              <Stat label="spent" value={<Money value={summary.total_spend} />} />
+              <Stat label="income" value={<Money value={summary.total_income} />} />
+              <Stat
                 label="net cashflow"
-                value={net > 0 ? `+${inr(summary.net_cashflow)}` : inr(summary.net_cashflow)}
-                accent={net > 0 ? "text-positive" : net < 0 ? "text-negative" : undefined}
+                value={<Money value={summary.net_cashflow} signed />}
+                tone={net > 0 ? "positive" : net < 0 ? "negative" : "neutral"}
               />
-              <StatTile label="net worth" value={inr(summary.net_worth.net_worth)} />
+              <Stat label="net worth" value={<Money value={summary.net_worth.net_worth} />} />
             </div>
 
             <Card>
@@ -422,8 +405,8 @@ export default function InsightsPage() {
                         <span className="min-w-0 truncate text-ink-secondary">
                           {GROUP_LABELS[g.grp] ?? g.grp}
                         </span>
-                        <span className="shrink-0 tabular-nums text-ink-primary">
-                          {inr(g.amount)}{" "}
+                        <span className="shrink-0">
+                          <Money value={g.amount} />{" "}
                           <span className="text-[11px] text-ink-secondary">
                             {Math.round(g.pct_of_spend * 10) / 10}%
                           </span>
@@ -464,8 +447,8 @@ export default function InsightsPage() {
                           }}
                         />
                       </div>
-                      <span className="shrink-0 text-right tabular-nums text-ink-primary">
-                        {inr(c.amount)}
+                      <span className="shrink-0 text-right">
+                        <Money value={c.amount} />
                       </span>
                     </div>
                   ))}
@@ -495,15 +478,17 @@ export default function InsightsPage() {
                       }`}
                     >
                       <span className="min-w-0 truncate text-ink-secondary">{c.name}</span>
-                      <span className="shrink-0 tabular-nums text-ink-primary">
-                        {inr(c.amount)}/{CADENCE_SHORT[c.cadence] ?? c.cadence}{" "}
-                        <span className="text-[11px] text-ink-secondary">· day {c.due_day}</span>
+                      <span className="shrink-0">
+                        <Money value={c.amount} />
+                        <span className="text-[11px] text-ink-secondary">
+                          /{CADENCE_SHORT[c.cadence] ?? c.cadence} · day {c.due_day}
+                        </span>
                       </span>
                     </div>
                   ))}
                 </div>
                 <p className="mt-3 border-t border-line pt-2 text-right text-xs text-ink-secondary">
-                  ≈ <span className="tabular-nums text-ink-secondary">{inr(recurring.monthly_total)}</span>
+                  ≈ <Money value={recurring.monthly_total} tone="neutral" />
                   /month committed
                 </p>
               </>
@@ -537,7 +522,7 @@ export default function InsightsPage() {
                             : "border-negative-line bg-negative-soft text-negative"
                         }`}
                       >
-                        {owed ? "owes you" : "you owe"} {inr(Math.abs(Number(p.balance)))}
+                        {owed ? "owes you" : "you owe"} <Money value={p.balance} tone="neutral" />
                       </span>
                     </div>
                   );
