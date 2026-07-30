@@ -22,6 +22,7 @@ from app.agent.loop import _system_prompt
 from app.agent.registry import ToolContext, dispatch, specs
 from app.auth.deps import current_user
 from app.config import get_settings
+from app.ledger import scheduled
 from app.llm.provider import ToolCall
 from app.memory import procedural, semantic, working
 
@@ -97,6 +98,7 @@ async def create_session(
     session_id = await working.get_or_create_session(
         x_user, body.session_id if body else None, channel="voice"
     )
+    scheduled.catch_up(x_user)
     instructions = _system_prompt() + VOICE_STYLE + await _standing_context(x_user)
 
     payload = {
