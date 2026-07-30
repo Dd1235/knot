@@ -41,8 +41,12 @@ Deadline: Aug 18. Items marked 🏁 are required for submission.
    robust option: magic-link or OTP-less email + signed session cookie; user_id
    scoping already exists everywhere.
 7. **Deploy**: backend container (ECS Fargate) + Amplify frontend + public URL.
-   Blocked on AWS account verification; non-AWS fallback acceptable since
-   Bedrock Titan embeddings already satisfies the AWS requirement.
+   Blocked on AWS account verification. NOTE: an earlier version of this line
+   claimed Titan embeddings already satisfied the AWS requirement — that is
+   false. Titan is blocked along with every other Bedrock model (D22), so the
+   AWS story rests on App Runner + ECR + S3 + CloudWatch. If verification does
+   not clear, a non-AWS host is acceptable but the AWS claim then rests on S3
+   exports alone and must be described as such.
 
 ## Submission assets 🏁
 
