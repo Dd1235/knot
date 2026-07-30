@@ -7,7 +7,7 @@ from psycopg.rows import dict_row
 
 from app.agent.registry import ToolContext, register
 from app.db.tx import run_serializable
-from app.ledger import analytics, recurring, service
+from app.ledger import analytics, loans, recurring, service
 from app.ledger.service import LedgerError, LegSpec
 
 TWO_PLACES = Decimal("0.01")
@@ -245,3 +245,54 @@ async def log_cash_spend(ctx: ToolContext, args: dict) -> dict:
         "transaction_id": str(posted.id),
         "still_unaccounted": cash["unaccounted"],
     }
+
+
+@register(
+    "track_loan",
+    "Register a loan or EMI (home, car, bike, personal, education). Use when "
+    "the user mentions borrowing from a bank or paying an EMI — 'I have a 5 "
+    "lakh car loan at 9% for 5 years', 'my home loan EMI is 42000'. Pass the "
+    "EMI if the user knows it; otherwise it is computed. Set already_running "
+    "true if the loan started before they began using this app.",
+    {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "e.g. Home Loan, Bike Loan"},
+            "principal": {"type": "number", "description": "Amount borrowed, INR"},
+            "annual_rate": {"type": "number", "description": "Annual interest %, e.g. 8.75"},
+            "tenure_months": {"type": "integer", "minimum": 1},
+            "emi": {"type": "number", "description": "Monthly payment if known"},
+            "lender": {"type": "string"},
+            "due_day": {"type": "integer", "minimum": 1, "maximum": 31},
+            "already_running": {"type": "boolean"},
+        },
+        "required": ["name", "principal", "annual_rate", "tenure_months"],
+    },
+)
+async def track_loan(ctx: ToolContext, args: dict) -> dict:
+    try:
+        loan = await loans.add_loan(
+            ctx.user_handle,
+            args["name"],
+            Decimal(str(args["principal"])),
+            Decimal(str(args["annual_rate"])),
+            int(args["tenure_months"]),
+            emi=Decimal(str(args["emi"])) if args.get("emi") else None,
+            lender=args.get("lender") or "",
+            due_day=int(args.get("due_day") or 5),
+            already_running=bool(args.get("already_running")),
+        )
+    except LedgerError as exc:
+        return {"error": str(exc)}
+    return {"loan": loan["name"], "emi": loan["emi"], "account": loan["account_name"]}
+
+
+@register(
+    "list_loans",
+    "List the user's loans with outstanding balance, EMI, how much of the next "
+    "payment is interest versus principal, and months left. Call this for any "
+    "question about debt, EMIs, or when a loan will be paid off.",
+    {"type": "object", "properties": {}},
+)
+async def list_loans(ctx: ToolContext, args: dict) -> dict:
+    return await loans.list_loans(ctx.user_handle)

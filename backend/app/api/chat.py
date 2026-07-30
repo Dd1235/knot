@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from app.agent.loop import run_turn, run_turn_stream
 from app.agent.registry import ToolContext
 from app.auth.deps import current_user
-from app.ledger import recurring
+from app.ledger import loans, recurring
 from app.memory import working
 from app.tasks import fire_and_forget
 
@@ -38,6 +38,7 @@ async def _persist_turn(session_id: UUID, message: str, done: dict) -> None:
 async def chat_stream(body: ChatIn, x_user: str = Depends(current_user)):
     session_id = await working.get_or_create_session(x_user, body.session_id)
     fire_and_forget(recurring.post_due(x_user), "recurring-post")
+    fire_and_forget(loans.post_due(x_user), "emi-post")
     history = await working.load_history(session_id)
     ctx = ToolContext(user_handle=x_user, session_id=str(session_id))
 
@@ -70,6 +71,7 @@ async def chat_stream(body: ChatIn, x_user: str = Depends(current_user)):
 async def chat(body: ChatIn, x_user: str = Depends(current_user)) -> dict:
     session_id = await working.get_or_create_session(x_user, body.session_id)
     fire_and_forget(recurring.post_due(x_user), "recurring-post")
+    fire_and_forget(loans.post_due(x_user), "emi-post")
     history = await working.load_history(session_id)
 
     ctx = ToolContext(user_handle=x_user, session_id=str(session_id))
