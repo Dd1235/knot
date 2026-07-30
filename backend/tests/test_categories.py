@@ -34,8 +34,12 @@ async def test_python_taxonomy_matches_the_database():
     in_python = {c: grp for grp, cats in categories.TAXONOMY.items() for c in cats}
     assert in_db == in_python
     assert set(categories.INVESTMENT_CATEGORIES) == set(categories.TAXONOMY["savings_invest"])
-    # Whatever the model is shown must be a category the database groups.
-    assert all(c in in_db for c in categories.hint().split(", "))
+    # Everything shown to the model is either grouped by the database or is an
+    # income category grouped by account type instead.
+    shown = categories.hint().split(", ")
+    assert all(c in in_db or c in categories.INCOME_CATEGORIES for c in shown)
+    # Internal transfer categories are never offered as something to say.
+    assert not (set(shown) & categories.INTERNAL)
 
 
 @pytest.mark.asyncio

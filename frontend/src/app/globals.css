@@ -50,6 +50,7 @@
   --chart-1: #3987e5;
   --chart-2: #b55fba;
   --chart-3: #199e70;
+  --chart-4: #0ca3be;
   /* Residual bucket, deliberately achromatic so it can't impersonate a series. */
   --chart-other: #8a8172;
   --chart-grid: #2e2a25;
@@ -110,6 +111,7 @@
     --chart-1: #2a78d6;
     --chart-2: #aa50b1;
     --chart-3: #1baf7a;
+    --chart-4: #008ba6;
     --chart-other: #8a8172;
     --chart-grid: #e8e1d3;
     --chart-axis: #c9c0ae;
@@ -163,6 +165,7 @@
   --chart-1: #2a78d6;
   --chart-2: #aa50b1;
   --chart-3: #1baf7a;
+  --chart-4: #008ba6;
   --chart-other: #8a8172;
   --chart-grid: #e8e1d3;
   --chart-axis: #c9c0ae;
@@ -215,6 +218,7 @@
   --chart-1: #3987e5;
   --chart-2: #b55fba;
   --chart-3: #199e70;
+  --chart-4: #0ca3be;
   --chart-other: #8a8172;
   --chart-grid: #2e2a25;
   --chart-axis: #3e3830;
@@ -267,6 +271,7 @@
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
   --color-chart-other: var(--chart-other);
   --color-chart-grid: var(--chart-grid);
   --color-chart-axis: var(--chart-axis);

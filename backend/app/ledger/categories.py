@@ -22,19 +22,27 @@ migration 0004 — `tests/test_categories.py` asserts it against the database.
 # tests/test_categories.py asserts this equals the database, so drift fails CI.
 TAXONOMY: dict[str, tuple[str, ...]] = {
     "essentials": (
-        "rent", "groceries", "utilities", "transport", "phone", "internet",
-        "medical", "education", "emi",
+        "rent", "groceries", "utilities", "transport", "fuel", "phone",
+        "internet", "medical", "education", "insurance", "childcare", "fees",
+        "tax_income", "tax_tds", "tax_advance", "tax_capital_gains",
     ),
     "discretionary": (
         "food", "entertainment", "shopping", "subscriptions", "travel",
-        "gifts", "coffee",
+        "gifts", "coffee", "charity", "pets",
     ),
+    # Debt service is its own thing. Interest paid is the price of past
+    # consumption, and people reason about it separately from groceries.
+    "debt": ("emi", "interest", "loan_interest"),
     "savings_invest": (
         "sip", "mutual_funds", "stocks", "fd", "rd", "savings", "nps",
         "ppf", "elss", "gold", "crypto", "bonds",
     ),
-    "income": ("salary", "freelance", "interest", "cashback"),
-    "transfer": ("withdrawal", "opening_balance"),
+    "income": ("salary", "freelance", "cashback"),
+    "transfer": (
+        "withdrawal", "opening_balance", "settlement", "repayment", "loan",
+        "reversal",
+    ),
+    "other": ("general", "uncategorized"),
 }
 
 ALL_CATEGORIES: tuple[str, ...] = tuple(
@@ -42,9 +50,27 @@ ALL_CATEGORIES: tuple[str, ...] = tuple(
 )
 
 
+# Income-side categories need no group row: the group is resolved from the
+# account type, so one flat string never has to serve an inflow and an outflow.
+# `rent` proved why — rent received was rendering as an essential expense.
+INCOME_CATEGORIES: tuple[str, ...] = (
+    "salary", "freelance", "cashback", "dividends", "bonus", "rental_income",
+    "capital_gains", "interest_earned", "refund",
+)
+
+# Categories the model should not reach for: they describe transfers the tools
+# create themselves, not something a user says.
+INTERNAL = frozenset({
+    "settlement", "repayment", "reversal", "opening_balance", "uncategorized",
+    "general", "loan",
+})
+
+
 def hint() -> str:
     """The category list shown to the model, generated so it cannot go stale."""
-    return ", ".join(ALL_CATEGORIES)
+    spoken = [c for c in ALL_CATEGORIES if c not in INTERNAL]
+    spoken += [c for c in INCOME_CATEGORIES if c not in spoken]
+    return ", ".join(spoken)
 
 
 INVESTMENT_CATEGORIES = frozenset(
