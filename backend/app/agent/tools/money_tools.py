@@ -7,7 +7,7 @@ from psycopg.rows import dict_row
 
 from app.agent.registry import ToolContext, register
 from app.db.tx import run_serializable
-from app.ledger import analytics, holdings, loans, recurring, service
+from app.ledger import analytics, holdings, limits, loans, recurring, service
 from app.ledger.service import LedgerError, LegSpec
 
 TWO_PLACES = Decimal("0.01")
@@ -438,3 +438,82 @@ async def mark_price(ctx: ToolContext, args: dict) -> dict:
 )
 async def list_holdings(ctx: ToolContext, args: dict) -> dict:
     return await holdings.portfolio(ctx.user_handle)
+
+
+@register(
+    "set_limit",
+    "Set a monthly spending limit — overall, for a spending group, or for one "
+    "category. Use for 'keep me under 10k for food', 'cap discretionary at "
+    "15000'. Restating one replaces it. Never suggest a limit unprompted; if "
+    "the user asks what a sensible one would be, call suggest_limits first.",
+    {
+        "type": "object",
+        "properties": {
+            "amount": {"type": "number", "description": "Monthly cap in INR"},
+            "scope": {"type": "string", "enum": ["total", "group", "category"]},
+            "target": {
+                "type": "string",
+                "description": (
+                    "Which group (essentials, discretionary, debt) or category "
+                    "(food, shopping...). Leave empty for a total limit."
+                ),
+            },
+        },
+        "required": ["amount"],
+    },
+)
+async def set_limit(ctx: ToolContext, args: dict) -> dict:
+    try:
+        row = await limits.set_limit(
+            ctx.user_handle,
+            Decimal(str(args["amount"])),
+            scope=args.get("scope") or "total",
+            target=args.get("target") or "",
+        )
+    except LedgerError as exc:
+        return {"error": str(exc)}
+    # Return the pace immediately: a limit set mid-month may already be blown,
+    # and saying so at once is more useful than waiting for the next check.
+    return {"limit": row, "status": await limits.status(ctx.user_handle)}
+
+
+@register(
+    "check_limits",
+    "How the user is tracking against their monthly limits: spent so far, "
+    "what's left, and whether they're ahead of the calendar. Call this when "
+    "they ask how they're doing, or before answering 'can I afford X'.",
+    {"type": "object", "properties": {}},
+)
+async def check_limits(ctx: ToolContext, args: dict) -> dict:
+    return await limits.status(ctx.user_handle)
+
+
+@register(
+    "clear_limit",
+    "Remove a monthly limit the user set.",
+    {
+        "type": "object",
+        "properties": {
+            "scope": {"type": "string", "enum": ["total", "group", "category"]},
+            "target": {"type": "string"},
+        },
+    },
+)
+async def clear_limit(ctx: ToolContext, args: dict) -> dict:
+    row = await limits.clear_limit(
+        ctx.user_handle, scope=args.get("scope") or "total", target=args.get("target") or ""
+    )
+    if row is None:
+        return {"error": "no such limit"}
+    return {"cleared": row}
+
+
+@register(
+    "suggest_limits",
+    "Limits worth offering, computed from the user's own median spending over "
+    "the last three months. Use when they ask what a reasonable cap would be, "
+    "so the number comes from their life rather than thin air.",
+    {"type": "object", "properties": {}},
+)
+async def suggest_limits(ctx: ToolContext, args: dict) -> dict:
+    return {"suggestions": await limits.suggestions(ctx.user_handle)}

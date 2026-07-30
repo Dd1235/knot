@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
 from app.auth.deps import current_user
-from app.ledger import analytics
+from app.ledger import analytics, limits
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -50,6 +50,11 @@ async def rhythm(
 @router.get("/safe-to-spend")
 async def safe_to_spend(x_user: str = Depends(current_user)) -> dict:
     return await analytics.safe_to_spend(x_user)
+
+
+@router.get("/limits")
+async def spend_limits(x_user: str = Depends(current_user)) -> dict:
+    return await limits.status(x_user)
 
 
 @router.get("/cash")
