@@ -123,6 +123,21 @@ def _account_type(name: str) -> str:
     }.get(prefix, "asset")
 
 
+# liability:priya is a person you owe. liability:loan:home is not, and neither
+# is equity:opening — inventing a person called "Loan" would put it in the
+# who-owes-who list.
+NON_PERSON_LIABILITIES = {"loan", "card", "tax", "opening"}
+
+
+def _is_person_account(name: str, acct_type: str) -> bool:
+    if acct_type == "receivable":
+        return True
+    if acct_type != "liability":
+        return False
+    tail = name.split(":", 1)[1] if ":" in name else ""
+    return bool(tail) and ":" not in tail and tail not in NON_PERSON_LIABILITIES
+
+
 def _canonical_person(name: str) -> str:
     return name.strip().title()
 
@@ -156,7 +171,7 @@ async def _ensure_account(conn: AsyncConnection, user_id: UUID, name: str) -> UU
     name = name.strip().lower()
     acct_type = _account_type(name)
     person_id = None
-    if acct_type == "receivable":
+    if _is_person_account(name, acct_type):
         person_id = await _ensure_person(conn, user_id, name.split(":", 1)[1])
     cur = await conn.execute(
         """
@@ -292,24 +307,31 @@ async def post_transaction(
     return await run_serializable(_fn)
 
 
-async def settle_up(
+async def _settle_against(
     user_handle: str,
-    person: str,
-    amount: Decimal | None = None,
+    account_name: str,
     *,
+    sign: int,
+    description: str,
+    category: str,
+    nothing_message: str,
+    over_message: str,
+    amount: Decimal | None = None,
     raw_input: str = "",
     source: str = "text",
     idempotency_key: str | None = None,
 ) -> PostedTransaction:
-    """Record that a person paid the user back.
+    """Pay down a derived balance, reading it inside the write.
 
-    Reads the outstanding receivable and validates the settlement amount
-    inside the same serializable transaction that writes the legs — this is
-    what makes concurrent double-settlement impossible (write skew is
-    rejected by CockroachDB and the retry re-reads a zero balance).
+    The read and the write share one serializable transaction. That is the whole
+    write-skew defence: two concurrent "settle it all" commands both read the
+    same outstanding balance, both try to zero it, and CockroachDB rejects one
+    with a retry error rather than paying twice. /demo/race proves it.
+
+    `sign` is +1 for a receivable (a positive balance means someone owes you)
+    and -1 for a liability (a negative balance means you owe). Everything else
+    is identical, which is why repayment reuses this instead of copying it.
     """
-    person_key = person.strip().lower()
-    account_name = f"receivable:{person_key}"
 
     async def _fn(conn: AsyncConnection) -> PostedTransaction:
         user_id = await ensure_user(conn, user_handle)
@@ -322,33 +344,87 @@ async def settle_up(
             """,
             (user_id, account_name),
         )
-        outstanding = (await cur.fetchone())[0]
+        outstanding = (await cur.fetchone())[0] * sign
         if outstanding <= 0:
-            raise NothingOutstanding(f"{_canonical_person(person)} owes nothing")
-        settle_amount = (
-            outstanding if amount is None else Decimal(amount).quantize(TWO_PLACES)
-        )
+            raise NothingOutstanding(nothing_message)
+        settle_amount = outstanding if amount is None else Decimal(amount).quantize(TWO_PLACES)
         if settle_amount <= 0:
-            raise LedgerError("settlement amount must be positive")
+            raise LedgerError("amount must be positive")
         if settle_amount > outstanding:
-            raise OverSettlement(
-                f"settlement of {settle_amount} exceeds outstanding {outstanding}"
-            )
+            raise OverSettlement(over_message.format(amount=settle_amount, outstanding=outstanding))
         return await _post_in_conn(
             conn,
             user_id,
-            f"{_canonical_person(person)} settled ₹{settle_amount}",
+            description.format(amount=settle_amount),
+            # Receivable (sign +1): money comes IN, the receivable shrinks.
+            # Liability  (sign -1): money goes OUT, the liability shrinks.
             [
-                LegSpec("cash", settle_amount),
-                LegSpec(account_name, -settle_amount),
+                LegSpec("cash", settle_amount * sign),
+                LegSpec(account_name, -settle_amount * sign),
             ],
             raw_input=raw_input,
             source=source,
-            category="settlement",
+            category=category,
             idempotency_key=idempotency_key,
         )
 
     return await run_serializable(_fn)
+
+
+async def settle_up(
+    user_handle: str,
+    person: str,
+    amount: Decimal | None = None,
+    *,
+    raw_input: str = "",
+    source: str = "text",
+    idempotency_key: str | None = None,
+) -> PostedTransaction:
+    """Record that a person paid the user back."""
+    who = _canonical_person(person)
+    return await _settle_against(
+        user_handle,
+        f"receivable:{person.strip().lower()}",
+        sign=1,
+        description=f"{who} settled ₹{{amount}}",
+        category="settlement",
+        nothing_message=f"{who} owes nothing",
+        over_message="settlement of {amount} exceeds outstanding {outstanding}",
+        amount=amount,
+        raw_input=raw_input,
+        source=source,
+        idempotency_key=idempotency_key,
+    )
+
+
+async def repay(
+    user_handle: str,
+    person: str,
+    amount: Decimal | None = None,
+    *,
+    raw_input: str = "",
+    source: str = "text",
+    idempotency_key: str | None = None,
+) -> PostedTransaction:
+    """Record paying back money the user borrowed.
+
+    There was no way to do this at all: `borrowed` created a liability account
+    and nothing ever credited it, so a debt could be recorded and never cleared.
+    """
+    who = _canonical_person(person)
+    return await _settle_against(
+        user_handle,
+        f"liability:{person.strip().lower()}",
+        sign=-1,
+        description=f"Repaid {who} ₹{{amount}}",
+        category="repayment",
+        nothing_message=f"you owe {who} nothing",
+        over_message="repayment of {amount} exceeds outstanding {outstanding}",
+        amount=amount,
+        raw_input=raw_input,
+        source=source,
+        idempotency_key=idempotency_key,
+    )
 
 
 async def void_transaction(

@@ -203,6 +203,39 @@ async def settle_up(ctx: ToolContext, args: dict) -> dict:
 
 
 @register(
+    "repay_debt",
+    "Record paying back money the user BORROWED from someone. Use for 'paid "
+    "Priya back', 'settled my debt with Arjun'. Omit amount to clear the whole "
+    "debt. This is the mirror of settle_up, which is for money owed TO the user.",
+    {
+        "type": "object",
+        "properties": {
+            "person": {"type": "string"},
+            "amount": {
+                "type": "number",
+                "description": "INR repaid; omit to repay the full outstanding",
+            },
+        },
+        "required": ["person"],
+    },
+)
+async def repay_debt(ctx: ToolContext, args: dict) -> dict:
+    amount = args.get("amount")
+    try:
+        posted = await service.repay(
+            ctx.user_handle,
+            args["person"],
+            Decimal(str(amount)) if amount is not None else None,
+            raw_input=ctx.user_message,
+        )
+    except service.NothingOutstanding as exc:
+        return {"error": str(exc)}
+    except service.OverSettlement as exc:
+        return {"error": str(exc)}
+    return {"transaction_id": str(posted.id), "legs": posted.legs}
+
+
+@register(
     "void_transaction",
     "Reverse a wrongly recorded transaction with a negating entry (nothing is "
     "deleted). Use when the user disputes an entry ('I never spent that'). Find "
