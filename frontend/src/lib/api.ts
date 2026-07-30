@@ -476,3 +476,31 @@ export const getLoans = () =>
   api<{ loans: Loan[]; total_outstanding: string; monthly_emi: string }>(
     "/ledger/loans",
   );
+
+export interface Holding {
+  symbol: string;
+  display_name: string;
+  kind: string;
+  units: string;
+  cost_basis: string;
+  avg_cost: string;
+  last_price: string | null;
+  last_price_at: string | null;
+  market_value: string | null;
+  unrealised: string | null;
+  /** False when no price has been stated; the row is carried at cost. */
+  priced: boolean;
+}
+
+export interface Portfolio {
+  holdings: Holding[];
+  cost_basis: string;
+  market_value: string;
+  unrealised: string;
+  realised_gain: string;
+  /** Money in invest: accounts with no units behind it — bought by category. */
+  unitemised: string;
+  all_priced: boolean;
+}
+
+export const getHoldings = () => api<Portfolio>("/ledger/holdings");
