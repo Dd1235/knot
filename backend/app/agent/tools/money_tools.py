@@ -7,7 +7,7 @@ from psycopg.rows import dict_row
 
 from app.agent.registry import ToolContext, register
 from app.db.tx import run_serializable
-from app.ledger import analytics, loans, recurring, service
+from app.ledger import analytics, holdings, loans, recurring, service
 from app.ledger.service import LedgerError, LegSpec
 
 TWO_PLACES = Decimal("0.01")
@@ -333,3 +333,108 @@ async def track_loan(ctx: ToolContext, args: dict) -> dict:
 )
 async def list_loans(ctx: ToolContext, args: dict) -> dict:
     return await loans.list_loans(ctx.user_handle)
+
+
+@register(
+    "buy_investment",
+    "Record BUYING a specific investment with units — shares, mutual fund "
+    "units, grams of gold, crypto. Use for 'bought 10 Reliance at 1380', "
+    "'20 units of Parag Flexi at 82'. If the user gives only a rupee amount "
+    "with no units, use record_transaction with the category instead.",
+    {
+        "type": "object",
+        "properties": {
+            "symbol": {"type": "string", "description": "e.g. reliance, infy, parag_flexi"},
+            "quantity": {"type": "number", "description": "Units, shares or grams bought"},
+            "unit_price": {"type": "number", "description": "Price per unit in INR"},
+            "kind": {
+                "type": "string",
+                "enum": ["stocks", "mutual_funds", "gold", "crypto", "bonds", "elss", "etf"],
+            },
+            "account": {"type": "string", "description": "Paid from; default bank"},
+        },
+        "required": ["symbol", "quantity", "unit_price"],
+    },
+)
+async def buy_investment(ctx: ToolContext, args: dict) -> dict:
+    try:
+        return await holdings.buy(
+            ctx.user_handle,
+            args["symbol"],
+            Decimal(str(args["quantity"])),
+            Decimal(str(args["unit_price"])),
+            kind=(args.get("kind") or "stocks"),
+            account=(args.get("account") or "bank").strip().lower(),
+            raw_input=ctx.user_message,
+        )
+    except LedgerError as exc:
+        return {"error": str(exc)}
+
+
+@register(
+    "sell_units",
+    "Record SELLING units of a specific investment — 'sold 5 Reliance at "
+    "1500'. Relieves cost at the weighted average and books the gain or loss. "
+    "For a redemption stated only in rupees, use sell_investment instead.",
+    {
+        "type": "object",
+        "properties": {
+            "symbol": {"type": "string"},
+            "quantity": {"type": "number"},
+            "unit_price": {"type": "number", "description": "Price per unit received"},
+            "kind": {
+                "type": "string",
+                "enum": ["stocks", "mutual_funds", "gold", "crypto", "bonds", "elss", "etf"],
+            },
+            "account": {"type": "string", "description": "Proceeds into; default bank"},
+        },
+        "required": ["symbol", "quantity", "unit_price"],
+    },
+)
+async def sell_units(ctx: ToolContext, args: dict) -> dict:
+    try:
+        return await holdings.sell(
+            ctx.user_handle,
+            args["symbol"],
+            Decimal(str(args["quantity"])),
+            Decimal(str(args["unit_price"])),
+            kind=(args.get("kind") or "stocks"),
+            account=(args.get("account") or "bank").strip().lower(),
+            raw_input=ctx.user_message,
+        )
+    except LedgerError as exc:
+        return {"error": str(exc)}
+
+
+@register(
+    "mark_price",
+    "Record what an investment is worth NOW, as the user states it — "
+    "'Reliance is at 1450', 'the fund NAV is 82.4'. Updates the valuation "
+    "only; it is not a transaction and does not move any money.",
+    {
+        "type": "object",
+        "properties": {
+            "symbol": {"type": "string"},
+            "price": {"type": "number", "description": "Current price per unit"},
+        },
+        "required": ["symbol", "price"],
+    },
+)
+async def mark_price(ctx: ToolContext, args: dict) -> dict:
+    try:
+        return await holdings.mark_price(
+            ctx.user_handle, args["symbol"], Decimal(str(args["price"]))
+        )
+    except LedgerError as exc:
+        return {"error": str(exc)}
+
+
+@register(
+    "list_holdings",
+    "The user's investment portfolio: every holding with units, average cost, "
+    "current value and unrealised gain, plus realised gains so far. Call this "
+    "for any question about investments, portfolio or returns.",
+    {"type": "object", "properties": {}},
+)
+async def list_holdings(ctx: ToolContext, args: dict) -> dict:
+    return await holdings.portfolio(ctx.user_handle)

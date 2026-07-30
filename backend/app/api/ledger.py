@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.auth.deps import current_user
-from app.ledger import loans, recurring, service
+from app.ledger import holdings, loans, recurring, service
 from app.ledger.service import (
     LegSpec,
     NothingOutstanding,
@@ -123,6 +123,12 @@ async def list_transactions(
 @router.get("/recurring")
 async def list_recurring(x_user: str = Depends(current_user)) -> dict:
     return await recurring.list_commitments(x_user)
+
+
+@router.get("/holdings")
+async def list_holdings(x_user: str = Depends(current_user)) -> dict:
+    """Portfolio with units, cost basis and market value where a price is known."""
+    return await holdings.portfolio(x_user)
 
 
 @router.get("/loans")
