@@ -452,3 +452,27 @@ export interface TraceTurn {
 
 export const getSessionTrace = (id: string) =>
   api<{ turns: TraceTurn[] }>(`/memory/sessions/${id}/trace`);
+
+export interface Loan {
+  id: string;
+  name: string;
+  lender: string;
+  principal: string;
+  annual_rate: string;
+  tenure_months: number;
+  emi: string;
+  due_day: number;
+  account_name: string;
+  active: boolean;
+  outstanding: string;
+  months_remaining: number | null;
+  /** How the NEXT payment splits. Most of an early EMI is interest. */
+  next_principal: string;
+  next_interest: string;
+  principal_share: number;
+}
+
+export const getLoans = () =>
+  api<{ loans: Loan[]; total_outstanding: string; monthly_emi: string }>(
+    "/ledger/loans",
+  );

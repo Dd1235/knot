@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import AppHeader from "@/components/ui/AppHeader";
 import Button from "@/components/ui/Button";
 import Card, { CardTitle } from "@/components/ui/Card";
+import Link from "next/link";
 import DailySpendChart from "@/components/DailySpendChart";
 import Logo from "@/components/ui/Logo";
 import Money from "@/components/ui/Money";
@@ -13,6 +14,7 @@ import Stat from "@/components/ui/Stat";
 import Icon from "@/components/ui/Icon";
 import {
   ArrowLeftRight,
+  Landmark,
   CalendarClock,
   CalendarDays,
   ChartColumn,
@@ -32,6 +34,7 @@ import {
   CashFloat,
   DailyFlow,
   Insight,
+  Loan,
   PersonBalance,
   RecurringCommitment,
   Rhythm,
@@ -41,6 +44,7 @@ import {
   getAnalytics,
   getBalances,
   getCashFloat,
+  getLoans,
   getRecurring,
   getRhythm,
   getSafeToSpend,
@@ -268,6 +272,11 @@ export default function InsightsPage() {
   const [safe, setSafe] = useState<SafeToSpend | null>(null);
   const [cash, setCash] = useState<CashFloat | null>(null);
   const [heat, setHeat] = useState<DailyFlow[] | null>(null);
+  const [debt, setDebt] = useState<{
+    loans: Loan[];
+    total_outstanding: string;
+    monthly_emi: string;
+  } | null>(null);
   const [settling, setSettling] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState(false);
@@ -344,6 +353,9 @@ export default function InsightsPage() {
       .catch(() => {});
     getCashFloat()
       .then(setCash)
+      .catch(() => {});
+    getLoans()
+      .then(setDebt)
       .catch(() => {});
     // The heatmap spans half a year regardless of the period selector, so it
     // is fetched once rather than on every period change.
@@ -565,6 +577,38 @@ export default function InsightsPage() {
       </Card>
     );
 
+  /* Debt earns rail space only when there is some. The number that matters is
+   * not the balance, it is how little of the next payment reduces it. */
+  const debtCard =
+    debt === null || debt.loans.filter((l) => Number(l.outstanding) > 0).length === 0 ? null : (
+      <Card quiet>
+        <CardTitle icon={Landmark}>Debt</CardTitle>
+        <p className="mb-1">
+          <Money value={debt.total_outstanding} size="lg" />
+          <span className="ml-2 text-xs text-ink-secondary">owed</span>
+        </p>
+        {(() => {
+          const live = debt.loans.filter((l) => Number(l.outstanding) > 0);
+          const principal = live.reduce((n, l) => n + Number(l.next_principal), 0);
+          const interest = live.reduce((n, l) => n + Number(l.next_interest), 0);
+          const share = principal + interest > 0 ? (principal / (principal + interest)) * 100 : 0;
+          return (
+            <p className="text-xs text-ink-secondary">
+              <Money value={debt.monthly_emi} tone="neutral" />/month, of which{" "}
+              <span className="text-ink-primary">{Math.round(share)}%</span> actually
+              pays it down
+            </p>
+          );
+        })()}
+        <Link
+          href="/debts"
+          className="mt-2 inline-block border-t border-line pt-2 text-[11px] text-brand-ink"
+        >
+          See every loan
+        </Link>
+      </Card>
+    );
+
   const heatmapCard = (
     <Card>
       <CardTitle icon={CalendarDays}>Half a year of spending</CardTitle>
@@ -712,6 +756,7 @@ export default function InsightsPage() {
                 <UpcomingCard safe={safe} />
                 {peopleCard}
                 <CashCard cash={cash} />
+                {debtCard}
                 {recurringCard}
                 <div className="hidden lg:block">{exportRow}</div>
               </aside>

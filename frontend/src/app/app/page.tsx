@@ -258,6 +258,9 @@ export default function ChatPage() {
             <Link href="/insights" aria-label="Spending insights" className={buttonClass()}>
               insights
             </Link>
+            <Link href="/debts" aria-label="Loans and debts" className={buttonClass()}>
+              debt
+            </Link>
             <Link href="/transactions" aria-label="All transactions" className={buttonClass()}>
               ledger
             </Link>

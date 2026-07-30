@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.auth.deps import current_user
-from app.ledger import recurring, service
+from app.ledger import loans, recurring, service
 from app.ledger.service import (
     LegSpec,
     NothingOutstanding,
@@ -123,3 +123,13 @@ async def list_transactions(
 @router.get("/recurring")
 async def list_recurring(x_user: str = Depends(current_user)) -> dict:
     return await recurring.list_commitments(x_user)
+
+
+@router.get("/loans")
+async def list_loans(x_user: str = Depends(current_user)) -> dict:
+    """Loans with the principal/interest split of the next payment.
+
+    All of this was already computed for the agent tool and had no way to
+    reach a screen.
+    """
+    return await loans.list_loans(x_user)
