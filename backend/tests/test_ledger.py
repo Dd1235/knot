@@ -10,7 +10,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.ledger import service
+from app.ledger import analytics, service
 from app.ledger.service import (
     LegSpec,
     NothingOutstanding,
@@ -169,3 +169,43 @@ async def test_one_utterance_is_one_transaction(user):
     assert second.deduplicated
     assert second.id == first.id
     assert len(await service.recent_transactions(user, limit=10)) == 1
+
+
+def test_money_can_come_from_an_account_other_than_cash():
+    """Everything used to fund itself from `cash`, so a user with a salary
+    account and a spending account could not say which one moved."""
+    from app.agent.tools.ledger_tools import _build_legs
+
+    legs = _build_legs("spent", Decimal("500"), "food", None, [], "hdfc")
+    assert {leg.account for leg in legs} == {"expense:food", "hdfc"}
+    assert sum(leg.amount for leg in legs) == 0
+
+    # Default is unchanged for everyone who never names one.
+    assert {leg.account for leg in _build_legs("spent", Decimal("500"), "food", None, [])} == {
+        "expense:food",
+        "cash",
+    }
+
+
+def test_money_cannot_be_funded_from_a_category():
+    from app.agent.tools.ledger_tools import _build_legs
+
+    with pytest.raises(UnbalancedTransaction):
+        _build_legs("spent", Decimal("500"), "food", None, [], "expense:food")
+
+
+async def test_a_transfer_between_own_accounts_is_not_spending(user):
+    await service.post_transaction(
+        user, "Opening", [LegSpec("hdfc", Decimal("50000")),
+                          LegSpec("equity:opening", Decimal("-50000"))],
+        category="opening_balance",
+    )
+    await service.post_transaction(
+        user, "Moved to icici from hdfc",
+        [LegSpec("icici", Decimal("20000")), LegSpec("hdfc", Decimal("-20000"))],
+        category="transfer",
+    )
+    row = (await service.recent_transactions(user, limit=1))[0]
+    assert row["direction"] == "transfer"
+    summary = await analytics.summary(user, 30)
+    assert Decimal(summary["total_spend"]) == 0

@@ -214,6 +214,43 @@ async def withdraw_cash(ctx: ToolContext, args: dict) -> dict:
 
 
 @register(
+    "transfer_money",
+    "Move money between the user's OWN accounts — bank to bank, bank to wallet, "
+    "paying a credit card. Use for 'moved 20k from HDFC to ICICI', 'loaded 2000 "
+    "into Paytm'. This is not spending and must never be recorded as such. For "
+    "an ATM withdrawal use withdraw_cash instead.",
+    {
+        "type": "object",
+        "properties": {
+            "amount": {"type": "number"},
+            "from_account": {"type": "string", "description": "e.g. hdfc, bank, salary"},
+            "to_account": {"type": "string", "description": "e.g. icici, paytm, cash"},
+        },
+        "required": ["amount", "from_account", "to_account"],
+    },
+)
+async def transfer_money(ctx: ToolContext, args: dict) -> dict:
+    amount = Decimal(str(args["amount"])).quantize(TWO_PLACES)
+    if amount <= 0:
+        return {"error": "amount must be positive"}
+    source = (args["from_account"] or "").strip().lower()
+    target = (args["to_account"] or "").strip().lower()
+    if source == target:
+        return {"error": "source and destination are the same account"}
+    for name in (source, target):
+        if name.startswith(NON_ASSET_PREFIXES):
+            return {"error": f"{name} is not one of your own accounts"}
+    posted = await service.post_transaction(
+        ctx.user_handle,
+        f"Moved to {target} from {source}",
+        [LegSpec(target, amount), LegSpec(source, -amount)],
+        category="transfer",
+        raw_input=ctx.user_message,
+    )
+    return {"transaction_id": str(posted.id), "legs": posted.legs}
+
+
+@register(
     "log_cash_spend",
     "Record spending physical cash. Use when the user says something was paid "
     "in cash ('paid 200 cash for vegetables', 'gave the auto 60 in cash'). "

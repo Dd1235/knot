@@ -48,26 +48,43 @@ def _parse_occurred_at(value: str | None) -> datetime | None:
     return parsed.replace(tzinfo=IST) if parsed.tzinfo is None else parsed
 
 
+# Every leg used to fund itself from `cash`, so someone with a salary account,
+# a spending account and a UPI wallet could not say which one moved.
+DEFAULT_FUNDING = "cash"
+FUNDING_MUST_BE_ASSET = ("expense:", "income:", "liability:", "receivable:", "equity:", "invest:")
+
+
+def _funding_account(account: str | None) -> str:
+    name = (account or DEFAULT_FUNDING).strip().lower()
+    if name.startswith(FUNDING_MUST_BE_ASSET):
+        raise UnbalancedTransaction(
+            f"{name} is not an account money can move from; name a bank, card or wallet"
+        )
+    return name
+
+
 def _build_legs(
     direction: str,
     amount: Decimal,
     category: str,
     counterparty: str | None,
     split_with: list[str],
+    account: str | None = None,
 ) -> list[LegSpec]:
     # A SIP or FD debit lands in an asset account, not an expense —
     # the money changed shape, it did not leave.
     expense_account = categories.account_for(category)
+    funding = _funding_account(account)
     if direction == "spent" and split_with:
         # User paid the full amount; each person owes an equal share.
         n = len(split_with) + 1
         share = (amount / n).quantize(TWO_PLACES)
         user_share = amount - share * len(split_with)  # absorbs rounding paise
-        legs = [LegSpec("cash", -amount), LegSpec(expense_account, user_share)]
+        legs = [LegSpec(funding, -amount), LegSpec(expense_account, user_share)]
         legs += [LegSpec(_person_account(p), share) for p in split_with]
         return legs
     if direction == "spent":
-        return [LegSpec(expense_account, amount), LegSpec("cash", -amount)]
+        return [LegSpec(expense_account, amount), LegSpec(funding, -amount)]
     if direction == "received":
         if categories.is_investment(category):
             # cash in + income:stocks leaves the holding on the books and
@@ -77,16 +94,16 @@ def _build_legs(
                 f"use sell_investment for {category}; recording it as income "
                 "would count the holding twice"
             )
-        return [LegSpec("cash", amount), LegSpec(f"income:{category}", -amount)]
+        return [LegSpec(funding, amount), LegSpec(f"income:{category}", -amount)]
     if direction == "lent":
         if not counterparty:
             raise UnbalancedTransaction("'lent' needs a counterparty name")
-        return [LegSpec(_person_account(counterparty), amount), LegSpec("cash", -amount)]
+        return [LegSpec(_person_account(counterparty), amount), LegSpec(funding, -amount)]
     if direction == "borrowed":
         if not counterparty:
             raise UnbalancedTransaction("'borrowed' needs a counterparty name")
         return [
-            LegSpec("cash", amount),
+            LegSpec(funding, amount),
             LegSpec(f"liability:{counterparty.strip().lower()}", -amount),
         ]
     raise UnbalancedTransaction(f"unknown direction: {direction}")
@@ -127,6 +144,14 @@ def _build_legs(
                 "type": "string",
                 "description": "ISO date/datetime if the user said when; omit for now",
             },
+            "account": {
+                "type": "string",
+                "description": (
+                    "Which account the money moved from or into, if the user "
+                    "named one — 'hdfc', 'bank', 'icici card', 'paytm'. "
+                    "Defaults to cash."
+                ),
+            },
         },
         "required": ["description", "amount", "direction"],
     },
@@ -142,6 +167,7 @@ async def record_transaction(ctx: ToolContext, args: dict) -> dict:
         category,
         args.get("counterparty"),
         args.get("split_with") or [],
+        args.get("account"),
     )
     posted = await service.post_transaction(
         ctx.user_handle,
