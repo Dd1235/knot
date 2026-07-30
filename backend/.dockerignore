@@ -4,3 +4,12 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 tests/
+
+# Never let secrets into a build context, even though the context is `backend/`
+# and the real .env lives at the repo root. A future build from the root would
+# otherwise bake the database password and API keys into an image layer.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
