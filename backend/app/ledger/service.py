@@ -447,6 +447,91 @@ async def repay(
     )
 
 
+class OverSale(LedgerError):
+    pass
+
+
+async def sell_investment(
+    user_handle: str,
+    category: str,
+    proceeds: Decimal,
+    *,
+    fraction: Decimal | None = None,
+    description: str = "",
+    raw_input: str = "",
+    source: str = "text",
+    idempotency_key: str | None = None,
+) -> PostedTransaction:
+    """Sell out of an investment, relieving cost and booking the gain.
+
+    There was no way to do this, and the shape the agent reached for instead —
+    cash in, income:stocks out — left the asset sitting on the books. Net worth
+    rose by the whole sale amount, which is the same error as D23 inverted:
+    money that changed shape being counted as money that appeared.
+
+    Three legs, so nothing is double-counted:
+
+        cash                 + proceeds
+        invest:<category>    - cost relieved
+        income:capital_gains - (proceeds - cost relieved)
+
+    `fraction` is how much of the holding went, defaulting to all of it. Once
+    per-instrument units land, cost relieved becomes quantity x average cost;
+    the leg shape does not change.
+    """
+    from app.ledger import categories as _categories
+
+    if not _categories.is_investment(category):
+        raise LedgerError(f"{category} is not an investment category")
+    proceeds = Decimal(proceeds).quantize(TWO_PLACES)
+    if proceeds <= 0:
+        raise LedgerError("proceeds must be positive")
+    share = Decimal("1") if fraction is None else Decimal(fraction)
+    if not 0 < share <= 1:
+        raise LedgerError("fraction must be between 0 and 1")
+    account_name = _categories.account_for(category)
+
+    async def _fn(conn: AsyncConnection) -> PostedTransaction:
+        user_id = await ensure_user(conn, user_handle)
+        # Read the holding inside the write, the same guard settle_up and repay
+        # use. Two concurrent "sell everything" commands cannot both relieve
+        # the same cost.
+        cur = await conn.execute(
+            """
+            SELECT COALESCE(SUM(l.amount), 0)
+            FROM transaction_legs AS l
+            JOIN accounts AS a ON a.id = l.account_id
+            WHERE a.user_id = %s AND a.name = %s
+            """,
+            (user_id, account_name),
+        )
+        held = (await cur.fetchone())[0]
+        if held <= 0:
+            raise NothingOutstanding(f"nothing held in {category}")
+        cost_relieved = (held * share).quantize(TWO_PLACES)
+        if cost_relieved > held:
+            raise OverSale(f"cannot sell {cost_relieved} of a {held} holding")
+        gain = proceeds - cost_relieved
+
+        legs = [LegSpec("cash", proceeds), LegSpec(account_name, -cost_relieved)]
+        # A sale exactly at cost has no gain leg; a zero-amount leg is rejected
+        # by the invariant check, and rightly so.
+        if gain != 0:
+            legs.append(LegSpec("income:capital_gains", -gain))
+        return await _post_in_conn(
+            conn,
+            user_id,
+            description or f"Sold {category}",
+            legs,
+            raw_input=raw_input,
+            source=source,
+            category=category,
+            idempotency_key=idempotency_key,
+        )
+
+    return await run_serializable(_fn)
+
+
 async def void_transaction(
     user_handle: str, transaction_id: str | UUID, reason: str = ""
 ) -> PostedTransaction:

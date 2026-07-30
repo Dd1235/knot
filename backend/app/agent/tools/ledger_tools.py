@@ -69,6 +69,14 @@ def _build_legs(
     if direction == "spent":
         return [LegSpec(expense_account, amount), LegSpec("cash", -amount)]
     if direction == "received":
+        if categories.is_investment(category):
+            # cash in + income:stocks leaves the holding on the books and
+            # inflates net worth by the whole sale. sell_investment exists
+            # precisely so this shape is never posted.
+            raise UnbalancedTransaction(
+                f"use sell_investment for {category}; recording it as income "
+                "would count the holding twice"
+            )
         return [LegSpec("cash", amount), LegSpec(f"income:{category}", -amount)]
     if direction == "lent":
         if not counterparty:
@@ -233,6 +241,53 @@ async def repay_debt(ctx: ToolContext, args: dict) -> dict:
     except service.OverSettlement as exc:
         return {"error": str(exc)}
     return {"transaction_id": str(posted.id), "legs": posted.legs}
+
+
+@register(
+    "sell_investment",
+    "Record SELLING an investment — stocks, mutual funds, gold, crypto, FD "
+    "closure. Use for 'sold my stocks for 60k', 'redeemed the mutual fund'. "
+    "Relieves the holding and books the gain or loss; never record a sale as "
+    "income. Pass fraction if only part of the holding was sold.",
+    {
+        "type": "object",
+        "properties": {
+            "category": {
+                "type": "string",
+                "description": "What was sold: stocks, mutual_funds, gold, crypto, fd...",
+            },
+            "proceeds": {"type": "number", "description": "INR actually received"},
+            "fraction": {
+                "type": "number",
+                "description": "Portion of the holding sold, 0-1; omit for all of it",
+            },
+            "description": {"type": "string"},
+        },
+        "required": ["category", "proceeds"],
+    },
+)
+async def sell_investment(ctx: ToolContext, args: dict) -> dict:
+    category = (args["category"] or "").strip().lower()
+    try:
+        posted = await service.sell_investment(
+            ctx.user_handle,
+            category,
+            Decimal(str(args["proceeds"])),
+            fraction=Decimal(str(args["fraction"])) if args.get("fraction") else None,
+            description=args.get("description") or "",
+            raw_input=ctx.user_message,
+        )
+    except service.LedgerError as exc:
+        return {"error": str(exc)}
+    gain = next(
+        (leg for leg in posted.legs if leg["account"] == "income:capital_gains"), None
+    )
+    return {
+        "transaction_id": str(posted.id),
+        "legs": posted.legs,
+        # Negated: income legs are credits, and the user wants "I made 12,000".
+        "realised_gain": str(-Decimal(gain["amount"])) if gain else "0.00",
+    }
 
 
 @register(
