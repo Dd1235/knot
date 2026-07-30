@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 from psycopg.rows import dict_row
 
 from app.db.pool import pool
-from app.ledger.service import DIRECTION_CASE
+from app.ledger.service import DIRECTION_CASE, GROUP_CASE
 
 IST = ZoneInfo("Asia/Kolkata")
 TWO_PLACES = Decimal("0.01")
@@ -200,7 +200,7 @@ async def export_rows(user_handle: str, days: int) -> list[dict]:
             SELECT ((t.occurred_at AT TIME ZONE 'Asia/Kolkata')::DATE)::STRING AS txn_date,
                    t.description,
                    t.category,
-                   COALESCE(cg.grp, 'other') AS grp,
+                   {GROUP_CASE} AS grp,
                    (SELECT COALESCE(SUM(l.amount) FILTER (WHERE l.amount > 0), 0)
                     FROM transaction_legs AS l
                     WHERE l.transaction_id = t.id)::STRING AS amount,

@@ -94,3 +94,46 @@ async def test_daily_spine_separates_invested_from_spent():
     assert Decimal(today["spend"]) == Decimal("20")
     assert Decimal(today["invested"]) == Decimal("25000")
     assert today["txns"] == 2
+
+
+@pytest.mark.asyncio
+async def test_rent_received_is_income_not_an_essential_expense():
+    """One flat category cannot serve both directions. `rent` maps to
+    essentials, so a landlord's rental income rendered as an expense."""
+    handle = f"landlord-{uuid.uuid4().hex[:8]}"
+    await service.post_transaction(
+        handle, "rent from tenant",
+        [LegSpec("bank", Decimal("18000")), LegSpec("income:rent", Decimal("-18000"))],
+        category="rent",
+    )
+    row = (await service.recent_transactions(handle, limit=1))[0]
+    assert row["direction"] == "received"
+    assert row["grp"] == "income"
+
+
+@pytest.mark.asyncio
+async def test_interest_paid_is_debt_not_income():
+    """`interest` was mapped to the income group, so interest PAID on a loan
+    appeared inside the income slice of a spending breakdown."""
+    handle = f"borrower-{uuid.uuid4().hex[:8]}"
+    await service.post_transaction(
+        handle, "loan interest",
+        [LegSpec("expense:interest", Decimal("1400")), LegSpec("bank", Decimal("-1400"))],
+        category="interest",
+    )
+    row = (await service.recent_transactions(handle, limit=1))[0]
+    assert row["direction"] == "spent"
+    assert row["grp"] == "debt"
+
+
+@pytest.mark.asyncio
+async def test_repaying_a_debt_groups_as_debt_not_spending():
+    handle = f"repay-{uuid.uuid4().hex[:8]}"
+    await service.post_transaction(
+        handle, "borrowed", [LegSpec("cash", Decimal("2000")),
+                             LegSpec("liability:sam", Decimal("-2000"))], category="loan",
+    )
+    await service.repay(handle, "sam", Decimal("500"))
+    row = (await service.recent_transactions(handle, limit=1))[0]
+    assert row["direction"] == "repaid"
+    assert row["grp"] == "debt"

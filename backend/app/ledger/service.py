@@ -109,6 +109,26 @@ DIRECTION_CASE = """
                    END"""
 
 
+# The spending group, resolved from the direction rather than from the category
+# string alone.
+#
+# One flat category cannot serve both an inflow and an outflow: `rent` is mapped
+# to essentials, so rent RECEIVED — a landlord's income — was rendering as an
+# essential expense. The legs already know which way the money went, so the
+# group is derived from them and the lookup table only has to describe expenses.
+GROUP_CASE = f"""
+                   CASE {DIRECTION_CASE}
+                       WHEN 'received' THEN 'income'
+                       WHEN 'invested' THEN 'savings_invest'
+                       WHEN 'borrowed' THEN 'debt'
+                       WHEN 'repaid' THEN 'debt'
+                       WHEN 'transfer' THEN 'transfer'
+                       WHEN 'settled' THEN 'transfer'
+                       WHEN 'lent' THEN 'transfer'
+                       ELSE COALESCE(cg.grp, 'other')
+                   END"""
+
+
 def _account_type(name: str) -> str:
     prefix = name.split(":", 1)[0]
     return {
@@ -538,7 +558,7 @@ async def recent_transactions(user_handle: str, limit: int = 20) -> list[dict]:
                    t.source::STRING, t.raw_input,
                    t.metadata->>'annotation' AS annotation,
                    t.metadata->>'annotation_kind' AS annotation_kind,
-                   COALESCE(cg.grp, 'other') AS grp,
+                   {GROUP_CASE} AS grp,
                    (SELECT COALESCE(SUM(l.amount) FILTER (WHERE l.amount > 0), 0)
                     FROM transaction_legs AS l
                     WHERE l.transaction_id = t.id)::STRING AS amount,
