@@ -143,6 +143,12 @@ export const settleUp = (person: string, amount?: string) =>
     body: JSON.stringify({ person, amount: amount ?? null }),
   });
 
+export const repayDebt = (person: string, amount?: string) =>
+  api<{ id: string; description: string }>("/ledger/repay", {
+    method: "POST",
+    body: JSON.stringify({ person, amount: amount ?? null }),
+  });
+
 export interface LedgerTransaction {
   id: string;
   occurred_at: string;

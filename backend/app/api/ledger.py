@@ -77,6 +77,18 @@ async def settle(body: SettleIn, x_user: str = Depends(current_user)) -> dict:
     return _txn_response(posted)
 
 
+@router.post("/repay", status_code=201)
+async def repay(body: SettleIn, x_user: str = Depends(current_user)) -> dict:
+    """The mirror of /settle: money the user owes, not money owed to them."""
+    try:
+        posted = await service.repay(
+            x_user, body.person, body.amount, idempotency_key=body.idempotency_key
+        )
+    except (NothingOutstanding, OverSettlement) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _txn_response(posted)
+
+
 class VoidIn(BaseModel):
     reason: str = ""
 

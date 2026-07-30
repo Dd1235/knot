@@ -44,6 +44,7 @@ import {
   getRecurring,
   getRhythm,
   getSafeToSpend,
+  repayDebt,
   settleUp,
 } from "@/lib/api";
 
@@ -301,11 +302,14 @@ export default function InsightsPage() {
       })
       .catch(() => {});
 
-  const onSettle = async (person: string) => {
-    if (!window.confirm(`Record that ${person} paid you back in full?`)) return;
+  const onSettle = async (person: string, owed: boolean) => {
+    const question = owed
+      ? `Record that ${person} paid you back in full?`
+      : `Record that you paid ${person} back in full?`;
+    if (!window.confirm(question)) return;
     setSettling(person);
     try {
-      await settleUp(person);
+      await (owed ? settleUp(person) : repayDebt(person));
       await refreshBalances();
     } finally {
       setSettling(null);
@@ -489,17 +493,19 @@ export default function InsightsPage() {
               <div key={p.display_name} className="flex items-center justify-between gap-3 text-sm">
                 <span className="min-w-0 truncate text-ink-secondary">{p.display_name}</span>
                 <span className="flex shrink-0 items-center gap-2">
-                  {owed && (
-                    <Button
-                      variant="tonal"
-                      tone="positive"
-                      disabled={settling === p.display_name}
-                      onClick={() => onSettle(p.display_name)}
-                      aria-label={`Settle up with ${p.display_name}`}
-                    >
-                      settle
-                    </Button>
-                  )}
+                  <Button
+                    variant="tonal"
+                    tone={owed ? "positive" : "neutral"}
+                    disabled={settling === p.display_name}
+                    onClick={() => onSettle(p.display_name, owed)}
+                    aria-label={
+                      owed
+                        ? `Settle up with ${p.display_name}`
+                        : `Record repaying ${p.display_name}`
+                    }
+                  >
+                    {owed ? "settle" : "repay"}
+                  </Button>
                   <span
                     className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-xs tabular-nums ${
                       owed
@@ -507,7 +513,10 @@ export default function InsightsPage() {
                         : "border-negative-line bg-negative-soft text-negative"
                     }`}
                   >
-                    {owed ? "owes you" : "you owe"} <Money value={p.balance} tone="neutral" />
+                    {/* The label already carries the direction, so the number
+                        must not repeat it as a minus sign. */}
+                    {owed ? "owes you" : "you owe"}{" "}
+                    <Money value={Math.abs(Number(p.balance))} tone="neutral" />
                   </span>
                 </span>
               </div>
