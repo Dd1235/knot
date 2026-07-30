@@ -504,3 +504,21 @@ export interface Portfolio {
 }
 
 export const getHoldings = () => api<Portfolio>("/ledger/holdings");
+
+export interface LimitStatus {
+  scope: string;
+  target: string;
+  limit: string;
+  spent: string;
+  left: string;
+  share: number;
+  /** (spent/limit) / (elapsed/month). 1.0 lands exactly on the limit. */
+  pace: number;
+  projected: string;
+  verdict: "fine" | "ahead" | "urgent" | "over";
+}
+
+export const getLimits = () =>
+  api<{ limits: LimitStatus[]; day: number; days_in_month: number; days_left: number }>(
+    "/analytics/limits",
+  );

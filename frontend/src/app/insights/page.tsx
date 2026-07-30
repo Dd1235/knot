@@ -14,6 +14,7 @@ import Stat from "@/components/ui/Stat";
 import Icon from "@/components/ui/Icon";
 import {
   ArrowLeftRight,
+  Gauge,
   Landmark,
   CalendarClock,
   CalendarDays,
@@ -34,6 +35,7 @@ import {
   CashFloat,
   DailyFlow,
   Insight,
+  LimitStatus,
   Loan,
   PersonBalance,
   RecurringCommitment,
@@ -44,6 +46,7 @@ import {
   getAnalytics,
   getBalances,
   getCashFloat,
+  getLimits,
   getLoans,
   getRecurring,
   getRhythm,
@@ -272,6 +275,12 @@ export default function InsightsPage() {
   const [safe, setSafe] = useState<SafeToSpend | null>(null);
   const [cash, setCash] = useState<CashFloat | null>(null);
   const [heat, setHeat] = useState<DailyFlow[] | null>(null);
+  const [caps, setCaps] = useState<{
+    limits: LimitStatus[];
+    day: number;
+    days_in_month: number;
+    days_left: number;
+  } | null>(null);
   const [debt, setDebt] = useState<{
     loans: Loan[];
     total_outstanding: string;
@@ -356,6 +365,9 @@ export default function InsightsPage() {
       .catch(() => {});
     getLoans()
       .then(setDebt)
+      .catch(() => {});
+    getLimits()
+      .then(setCaps)
       .catch(() => {});
     // The heatmap spans half a year regardless of the period selector, so it
     // is fetched once rather than on every period change.
@@ -577,6 +589,71 @@ export default function InsightsPage() {
       </Card>
     );
 
+  /* Colour the derivative, not the level. Half a limit spent is a crisis on
+   * the 5th and unremarkable on the 25th, so the bar shows where you are
+   * against the calendar rather than against the total. */
+  const limitsCard =
+    caps === null || caps.limits.length === 0 ? null : (
+      <Card>
+        <CardTitle icon={Gauge}>Monthly limits</CardTitle>
+        <div className="space-y-3">
+          {caps.limits.map((l) => {
+            const tone =
+              l.verdict === "over" || l.verdict === "urgent"
+                ? "var(--negative)"
+                : l.verdict === "ahead"
+                  ? "var(--warning)"
+                  : "var(--positive)";
+            const elapsed = (caps.day / caps.days_in_month) * 100;
+            return (
+              <div key={`${l.scope}-${l.target}`}>
+                <div className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="min-w-0 truncate text-ink-secondary">
+                    {l.scope === "total" ? "everything" : GROUP_LABELS[l.target] ?? l.target}
+                  </span>
+                  <span className="shrink-0 text-xs">
+                    <Money value={l.spent} tone="neutral" />
+                    <span className="text-ink-muted"> of </span>
+                    <Money value={l.limit} tone="neutral" />
+                  </span>
+                </div>
+                <div className="relative mt-1 h-2 rounded-full bg-surface-raised">
+                  <div
+                    className="h-2 rounded-full"
+                    style={{ width: `${Math.min(l.share, 100)}%`, backgroundColor: tone }}
+                  />
+                  {/* Where the calendar has got to. Being left of this line is
+                      the whole definition of on track. */}
+                  <span
+                    aria-hidden
+                    className="absolute top-[-2px] h-3 w-px bg-ink-secondary"
+                    style={{ left: `${elapsed}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-[11px] text-ink-secondary">
+                  {l.verdict === "over" ? (
+                    <span className="text-negative">
+                      over, {caps.days_left} day{caps.days_left === 1 ? "" : "s"} left
+                    </span>
+                  ) : l.verdict === "urgent" || l.verdict === "ahead" ? (
+                    <>
+                      on for <Money value={l.projected} tone="neutral" /> — ahead of
+                      the month
+                    </>
+                  ) : (
+                    <>
+                      <Money value={l.left} tone="neutral" /> left ·{" "}
+                      {caps.days_left} day{caps.days_left === 1 ? "" : "s"}
+                    </>
+                  )}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    );
+
   /* Debt earns rail space only when there is some. The number that matters is
    * not the balance, it is how little of the next payment reduces it. */
   const debtCard =
@@ -755,6 +832,7 @@ export default function InsightsPage() {
                 <div className="hidden lg:block">{aiCard}</div>
                 <UpcomingCard safe={safe} />
                 {peopleCard}
+                {limitsCard}
                 <CashCard cash={cash} />
                 {debtCard}
                 {recurringCard}
