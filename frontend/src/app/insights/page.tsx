@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import AppHeader from "@/components/ui/AppHeader";
+import AppShell, { PageTitle } from "@/components/ui/AppShell";
 import Button from "@/components/ui/Button";
 import Card, { CardTitle } from "@/components/ui/Card";
 import Link from "next/link";
@@ -910,19 +910,18 @@ export default function InsightsPage() {
   );
 
   return (
-    <div className="flex h-dvh flex-col">
-      <AppHeader
-        measure="max-w-lg lg:max-w-[1400px]" title="Insights" back="/app">
+    <AppShell measure="max-w-310 lg:max-w-350">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <PageTitle>Insights</PageTitle>
         <SegmentedNav
           items={PERIODS.map((p) => ({ id: String(p), label: `${p} days` }))}
           value={String(days)}
           onChange={(id) => setDays(Number(id) as Period)}
           label="Time period"
-          className="pb-2"
         />
-      </AppHeader>
+      </div>
 
-      <main className="mx-auto w-full max-w-lg flex-1 overflow-y-auto px-4 py-4 lg:max-w-[1400px] lg:px-6">
+      <div className="mt-5">
         {!loading && !summary ? (
           <p className="mt-10 text-center text-sm text-ink-secondary">
             Couldn&apos;t load insights — check the connection and switch periods to retry.
@@ -970,7 +969,7 @@ export default function InsightsPage() {
                 <div className="lg:hidden">{exportRow}</div>
               </div>
 
-              <aside className="space-y-3 lg:col-span-4 lg:sticky lg:top-0">
+              <aside className="space-y-3 lg:col-span-4 lg:sticky lg:top-6">
                 <div className="hidden lg:block">
                   <SafeToSpendCard data={safe} />
                 </div>
@@ -987,7 +986,7 @@ export default function InsightsPage() {
           </>
         )}
         <div className="h-[env(safe-area-inset-bottom)]" />
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

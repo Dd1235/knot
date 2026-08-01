@@ -12,7 +12,7 @@ import {
   getProcedural,
   getSemantic,
 } from "@/lib/api";
-import AppHeader from "@/components/ui/AppHeader";
+import AppShell, { PageTitle } from "@/components/ui/AppShell";
 import Card from "@/components/ui/Card";
 import Pill from "@/components/ui/Pill";
 import SegmentedNav from "@/components/ui/SegmentedNav";
@@ -63,24 +63,23 @@ export default function MemoryPage() {
   ];
 
   return (
-    <div className="flex h-dvh flex-col">
-      <AppHeader
-        measure="max-w-2xl" title="Memory" back="/app">
-        <div className="grid grid-cols-4 gap-2 pb-3">
-          {stats.map((s) => (
-            <Stat key={s.label} label={s.label} value={s.value ?? "–"} tone="brand" size="sm" />
-          ))}
-        </div>
-        <SegmentedNav
-          items={TABS}
-          value={tab}
-          onChange={setTab}
-          label="Memory store"
-          className="pb-2"
-        />
-      </AppHeader>
+    <AppShell>
+      <PageTitle>Memory</PageTitle>
 
-      <main className="flex-1 space-y-2.5 overflow-y-auto px-4 py-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
+      <div className="mt-5 grid max-w-2xl grid-cols-4 gap-2">
+        {stats.map((s) => (
+          <Stat key={s.label} label={s.label} value={s.value ?? "–"} tone="brand" size="sm" />
+        ))}
+      </div>
+      <SegmentedNav
+        items={TABS}
+        value={tab}
+        onChange={setTab}
+        label="Memory store"
+        className="mt-3"
+      />
+
+      <div className="mt-4 max-w-2xl space-y-2.5">
         {tab === "semantic" &&
           (facts.length === 0 ? (
             <Empty>No facts yet — chat and I&apos;ll start remembering.</Empty>
@@ -168,7 +167,7 @@ export default function MemoryPage() {
               </Card>
             ))
           ))}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

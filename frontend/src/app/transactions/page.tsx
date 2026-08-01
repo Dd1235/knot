@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { LedgerTransaction, inr, listTransactions, voidTransaction } from "@/lib/api";
-import AppHeader from "@/components/ui/AppHeader";
+import AppShell, { PageTitle } from "@/components/ui/AppShell";
 import Button from "@/components/ui/Button";
 import Money from "@/components/ui/Money";
 import { GROUP_COLORS } from "@/lib/groups";
@@ -118,21 +118,19 @@ export default function TransactionsPage() {
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
   return (
-    <div className="flex h-dvh flex-col">
-      <AppHeader
-        measure="max-w-3xl" title="Transactions" back="/app">
-        <div className="pb-3">
-          <input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Search description, category or person…"
-            aria-label="Search transactions"
-            className="w-full rounded-lg border border-line bg-surface-card px-3 py-2 text-sm outline-none placeholder:text-ink-muted focus:border-brand-line"
-          />
-        </div>
-      </AppHeader>
+    <AppShell>
+      <div className="flex max-w-3xl flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <PageTitle>Transactions</PageTitle>
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Search description, category or person…"
+          aria-label="Search transactions"
+          className="w-full rounded-lg border border-line bg-surface-card px-3 py-2 text-sm outline-none placeholder:text-ink-muted focus:border-brand-line sm:max-w-xs"
+        />
+      </div>
 
-      <main className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 py-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
+      <div className="mt-5 max-w-3xl">
         {days.length === 0 ? (
           <p className="mt-10 text-center text-sm text-ink-secondary">
             {transactions.length === 0
@@ -256,7 +254,7 @@ export default function TransactionsPage() {
             </section>
           ))
         )}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }
