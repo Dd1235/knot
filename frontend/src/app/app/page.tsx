@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ContextTrace,
   PersonBalance,
   ToolEvent,
   getBalances,
   inr,
+  logout,
   sendChatStream,
 } from "@/lib/api";
 import { speak, stopSpeaking, unlockSpeech, useSpeechInput } from "@/lib/speech";
@@ -20,7 +22,21 @@ import Money from "@/components/ui/Money";
 import Pill from "@/components/ui/Pill";
 import { inputClass } from "@/components/ui/styles";
 import Icon from "@/components/ui/Icon";
-import { ChevronDown, ChevronUp, Mic, Square } from "lucide-react";
+import {
+  Boxes,
+  BrainCircuit,
+  ChartColumn,
+  ChevronDown,
+  ChevronUp,
+  Landmark,
+  LogOut,
+  MessagesSquare,
+  Mic,
+  ReceiptText,
+  Square,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
@@ -45,6 +61,17 @@ const TOOL_BADGES: Record<string, string> = {
   learn_rule: "rule saved",
   search_memory: "memory searched",
 };
+
+const DESTINATIONS = [
+  { href: "/insights", name: "insights", label: "Spending insights", icon: ChartColumn },
+  { href: "/transactions", name: "ledger", label: "All transactions", icon: ReceiptText },
+  { href: "/investments", name: "investments", label: "Investments", icon: TrendingUp },
+  { href: "/debts", name: "debt", label: "Loans and debts", icon: Landmark },
+  { href: "/memory", name: "memory", label: "Memory inspector", icon: BrainCircuit },
+  { href: "/sessions", name: "history", label: "Past conversations", icon: MessagesSquare },
+  { href: "/architecture", name: "how it works", label: "How it works", icon: Boxes },
+  { href: "/demo", name: "race demo", label: "Concurrency demo", icon: Zap },
+] as const;
 
 const SUGGESTIONS = [
   "lent Priya ₹500 for lunch",
@@ -118,6 +145,7 @@ export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBalance[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     setSessionId(localStorage.getItem("ledger:session"));
@@ -210,6 +238,15 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiceOpen]);
 
+  const onSignOut = async () => {
+    if (!window.confirm("Sign out? Your ledger and memory stay put.")) return;
+    // Clear the local session pointer too, or the next sign-in resumes a
+    // conversation that belongs to the previous account.
+    localStorage.removeItem("ledger:session");
+    await logout().catch(() => {});
+    router.push("/login");
+  };
+
   const newSession = () => {
     localStorage.removeItem("ledger:session");
     setSessionId(null);
@@ -246,31 +283,26 @@ export default function ChatPage() {
             <Button onClick={newSession} title="Memory persists across sessions">
               new session
             </Button>
-            <Link href="/memory" aria-label="Memory inspector" className={buttonClass()}>
-              memory
-            </Link>
-            <Link href="/sessions" aria-label="Past conversations" className={buttonClass()}>
-              history
-            </Link>
-            <Link href="/architecture" aria-label="How it works" className={buttonClass()}>
-              how it works
-            </Link>
-            <Link href="/insights" aria-label="Spending insights" className={buttonClass()}>
-              insights
-            </Link>
-            <Link href="/investments" aria-label="Investments" className={buttonClass()}>
-              investments
-            </Link>
-            <Link href="/debts" aria-label="Loans and debts" className={buttonClass()}>
-              debt
-            </Link>
-            <Link href="/transactions" aria-label="All transactions" className={buttonClass()}>
-              ledger
-            </Link>
+            <Button onClick={onSignOut} aria-label="Sign out">
+              <Icon as={LogOut} size={15} />
+            </Button>
             <ThemeToggle />
           </>
         }
       >
+        <nav aria-label="Sections" className="flex flex-wrap gap-1.5 pb-2.5">
+          {DESTINATIONS.map((d) => (
+            <Link
+              key={d.href}
+              href={d.href}
+              aria-label={d.label}
+              className={`${buttonClass()} inline-flex items-center gap-1.5`}
+            >
+              <Icon as={d.icon} size={13} />
+              {d.name}
+            </Link>
+          ))}
+        </nav>
         {people.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-2.5">
             {people.map((p) => (

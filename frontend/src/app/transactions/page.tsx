@@ -21,6 +21,7 @@ const DIRECTION: Record<string, { label: string; sign: string; tone: string }> =
   // Not spending: the money changed shape. Never tinted like an outflow.
   invested: { label: "invested", sign: "→", tone: "text-positive" },
   transfer: { label: "moved", sign: "↔", tone: "text-ink-secondary" },
+  refund: { label: "refunded", sign: "+", tone: "text-positive" },
   reversal: { label: "reversal", sign: "↺", tone: "text-ink-muted" },
 };
 
