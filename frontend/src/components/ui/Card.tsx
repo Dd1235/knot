@@ -26,7 +26,9 @@ export default function Card({
   return (
     <div
       className={`rounded-xl ${
-        quiet ? "border border-transparent bg-surface-raised/60" : "border border-line bg-surface-card"
+        quiet
+          ? "border border-transparent bg-surface-raised/60"
+          : "elevated border border-line bg-surface-card"
       } ${PAD[pad]} ${ruled ? "ruled" : ""} ${className}`}
     >
       {children}

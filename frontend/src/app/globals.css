@@ -13,18 +13,28 @@
      so the layers barely separated and the whole thing read as "nearly
      black" — while the light theme, at roughly twice the chroma, read as warm
      and deliberate. Same hue family, same intent, now visible. */
-  --surface-base: #191713;
-  --surface-card: #26231f;
-  --surface-raised: #35312b;
-  --surface-overlay: rgba(25, 23, 19, 0.97);
+  /* Depth is the DISTANCE between layers, not the lightness of any one of
+     them. The previous pass lifted all three together, which kept them just
+     as close and still read flat. The base now drops while the card rises:
+     base->card goes 1.14 -> 1.22, card->raised 1.21 -> 1.30, and borders
+     1.43 -> 1.67. ink-muted rises with them, or it would have fallen to
+     2.83:1 on the new card. */
+  --surface-base: #100e0b;
+  --surface-card: #26221e;
+  --surface-raised: #39352e;
+  --surface-overlay: rgba(16, 14, 11, 0.97);
 
-  --line: #413c36;
-  --line-strong: #57524a;
+  --line: #4b453e;
+  --line-strong: #68625a;
 
   --ink-primary: #f5f1e8;
   --ink-secondary: #a8a093;
   /* Decorative only (3.17:1 on card) — placeholders, strikethrough, rules. */
-  --ink-muted: #6e675c;
+  --ink-muted: #847f79;
+  /* Elevation. On a dark surface a drop shadow alone does almost nothing —
+     the top highlight is what actually makes an edge read as lifted. */
+  --elevation: 0 1px 0 0 rgb(255 255 255 / 0.045) inset, 0 1px 2px rgb(0 0 0 / 0.5),
+    0 6px 16px -6px rgb(0 0 0 / 0.55);
   --ink-on-brand: #1a1712;
 
   --brand: #e0a93a;
@@ -57,17 +67,17 @@
   --chart-4: #0ca3be;
   /* Residual bucket, deliberately achromatic so it can't impersonate a series. */
   --chart-other: #8a8172;
-  --chart-grid: #413c36;
-  --chart-axis: #57524a;
+  --chart-grid: #4b453e;
+  --chart-axis: #68625a;
   --chart-tick: #a8a093;
   --chart-label: #f5f1e8;
-  --chart-track: #35312b;
+  --chart-track: #39352e;
   /* Sequential ramp for the spending heatmap. One hue, stepped evenly in OKLCH
      (H 45), so magnitude reads as heat and the order survives greyscale and
      every form of colour blindness. Deliberately redder than brand gold (H~80)
      so a heat cell can never be mistaken for brand chrome. A day with no
      spending stays on the surface colour: an absence, not a low value. */
-  --heat-0: #35312b;
+  --heat-0: #39352e;
   --heat-1: #5b301c;
   --heat-2: #954c28;
   --heat-3: #cb6532;
@@ -90,6 +100,7 @@
     --ink-primary: #1a1712;
     --ink-secondary: #5c5548;
     --ink-muted: #8a8172;
+    --elevation: 0 1px 2px rgb(60 46 20 / 0.06), 0 6px 16px -8px rgb(60 46 20 / 0.10);
     --ink-on-brand: #1a1712;
 
     /* Gold splits: #e0a93a is 2.12:1 on white — fills only, never text. */
@@ -145,6 +156,7 @@
   --ink-primary: #1a1712;
   --ink-secondary: #5c5548;
   --ink-muted: #8a8172;
+  --elevation: 0 1px 2px rgb(60 46 20 / 0.06), 0 6px 16px -8px rgb(60 46 20 / 0.10);
   --ink-on-brand: #1a1712;
 
   --brand: #e0a93a;
@@ -187,17 +199,19 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --surface-base: #191713;
-  --surface-card: #26231f;
-  --surface-raised: #35312b;
-  --surface-overlay: rgba(25, 23, 19, 0.97);
+  --surface-base: #100e0b;
+  --surface-card: #26221e;
+  --surface-raised: #39352e;
+  --surface-overlay: rgba(16, 14, 11, 0.97);
 
-  --line: #413c36;
-  --line-strong: #57524a;
+  --line: #4b453e;
+  --line-strong: #68625a;
 
   --ink-primary: #f5f1e8;
   --ink-secondary: #a8a093;
-  --ink-muted: #6e675c;
+  --ink-muted: #847f79;
+  --elevation: 0 1px 0 0 rgb(255 255 255 / 0.045) inset, 0 1px 2px rgb(0 0 0 / 0.5),
+    0 6px 16px -6px rgb(0 0 0 / 0.55);
   --ink-on-brand: #1a1712;
 
   --brand: #e0a93a;
@@ -224,13 +238,13 @@
   --chart-3: #199e70;
   --chart-4: #0ca3be;
   --chart-other: #8a8172;
-  --chart-grid: #413c36;
-  --chart-axis: #57524a;
+  --chart-grid: #4b453e;
+  --chart-axis: #68625a;
   --chart-tick: #a8a093;
   --chart-label: #f5f1e8;
-  --chart-track: #35312b;
+  --chart-track: #39352e;
 
-  --heat-0: #35312b;
+  --heat-0: #39352e;
   --heat-1: #5b301c;
   --heat-2: #954c28;
   --heat-3: #cb6532;
@@ -341,6 +355,12 @@
 
 /* Gold appears as a 1px rule almost everywhere, and as a fill exactly once
    per screen (the single primary action). That discipline is the brand. */
+/** Cards read as objects sitting on the surface rather than as another shade
+ *  of it. The inset top highlight is doing most of the work in dark mode. */
+@utility elevated {
+  box-shadow: var(--elevation);
+}
+
 @utility hairline-gold {
   box-shadow: inset 0 -1px 0 0 var(--brand-line);
 }
