@@ -523,13 +523,30 @@ export interface LimitStatus {
   share: number;
   /** (spent/limit) / (elapsed/month). 1.0 lands exactly on the limit. */
   pace: number;
-  projected: string;
+  /** Null early in the month, when extrapolating from a day or two is noise. */
+  projected: string | null;
   verdict: "fine" | "ahead" | "urgent" | "over";
 }
 
-export const getLimits = () =>
-  api<{ limits: LimitStatus[]; day: number; days_in_month: number; days_left: number }>(
-    "/analytics/limits",
+export interface LimitsResponse {
+  limits: LimitStatus[];
+  day: number;
+  days_in_month: number;
+  days_left?: number;
+}
+
+export const getLimits = () => api<LimitsResponse>("/analytics/limits");
+
+export const setLimit = (amount: number, scope = "total", target = "") =>
+  api<LimitsResponse>("/analytics/limits", {
+    method: "POST",
+    body: JSON.stringify({ amount, scope, target }),
+  });
+
+export const clearLimit = (scope = "total", target = "") =>
+  api<LimitsResponse>(
+    `/analytics/limits?scope=${encodeURIComponent(scope)}&target=${encodeURIComponent(target)}`,
+    { method: "DELETE" },
   );
 
 export const getUpcoming = (horizonDays = 45) =>

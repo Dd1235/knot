@@ -2,12 +2,15 @@
 
 import csv
 import io
+from decimal import Decimal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from app.auth.deps import current_user
 from app.ledger import analytics, limits, recurring
+from app.ledger.service import LedgerError
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -63,6 +66,33 @@ async def upcoming(
 
 @router.get("/limits")
 async def spend_limits(x_user: str = Depends(current_user)) -> dict:
+    return await limits.status(x_user)
+
+
+class LimitIn(BaseModel):
+    amount: Decimal
+    scope: str = "total"
+    target: str = ""
+
+
+@router.post("/limits", status_code=201)
+async def set_spend_limit(body: LimitIn, x_user: str = Depends(current_user)) -> dict:
+    """Setting a limit shouldn't require asking the agent for permission."""
+    try:
+        await limits.set_limit(x_user, body.amount, scope=body.scope, target=body.target)
+    except LedgerError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return await limits.status(x_user)
+
+
+@router.delete("/limits")
+async def clear_spend_limit(
+    scope: str = Query(default="total"),
+    target: str = Query(default=""),
+    x_user: str = Depends(current_user),
+) -> dict:
+    if await limits.clear_limit(x_user, scope=scope, target=target) is None:
+        raise HTTPException(status_code=404, detail="no such limit")
     return await limits.status(x_user)
 
 
