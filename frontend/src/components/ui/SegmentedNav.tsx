@@ -32,7 +32,7 @@ export default function SegmentedNav<T extends string>({
             className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
               active
                 ? "bg-brand text-ink-on-brand font-medium"
-                : "border border-line text-ink-secondary active:bg-surface-raised"
+                : "border border-line text-ink-secondary hover:bg-surface-raised hover:text-ink-primary active:bg-surface-raised"
             }`}
           >
             {item.label}

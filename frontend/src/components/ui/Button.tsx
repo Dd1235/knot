@@ -17,12 +17,12 @@ export function buttonClass(
 ): string {
   const base = `inline-flex items-center justify-center gap-1.5 rounded-lg ${SIZE[size]} transition-colors disabled:opacity-40`;
   if (variant === "primary") {
-    return `${base} bg-brand text-ink-on-brand font-semibold active:brightness-95`;
+    return `${base} bg-brand text-ink-on-brand font-semibold hover:brightness-105 active:brightness-95`;
   }
   if (variant === "tonal") {
-    return `${base} border ${TONE_SOFT[tone]}`;
+    return `${base} border ${TONE_SOFT[tone]} hover:brightness-110`;
   }
-  return `${base} border border-line text-ink-secondary active:bg-surface-raised`;
+  return `${base} border border-line text-ink-secondary hover:bg-surface-raised hover:text-ink-primary active:bg-surface-raised`;
 }
 
 type BaseProps = ButtonHTMLAttributes<HTMLButtonElement> & {
