@@ -209,3 +209,26 @@ async def test_a_transfer_between_own_accounts_is_not_spending(user):
     assert row["direction"] == "transfer"
     summary = await analytics.summary(user, 30)
     assert Decimal(summary["total_spend"]) == 0
+
+
+async def test_a_refund_reduces_the_original_category(user):
+    """Posting it as income showed 500 spent and 200 earned. A refund is
+    neither — it is 300 spent."""
+    from app.agent.tools.ledger_tools import _build_legs
+
+    await service.post_transaction(
+        user, "dmart", _build_legs("spent", Decimal("500"), "groceries", None, []),
+        category="groceries",
+    )
+    await service.post_transaction(
+        user, "returned an item",
+        _build_legs("refund", Decimal("200"), "groceries", None, []),
+        category="groceries",
+    )
+    summary = await analytics.summary(user, 30)
+    assert Decimal(summary["total_spend"]) == Decimal("300")
+    assert Decimal(summary["total_income"]) == 0
+    groceries = next(c for c in summary["by_category"] if c["category"] == "groceries")
+    assert Decimal(groceries["amount"]) == Decimal("300")
+
+    assert (await service.recent_transactions(user, limit=1))[0]["direction"] == "refund"

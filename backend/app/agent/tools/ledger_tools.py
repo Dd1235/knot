@@ -95,6 +95,12 @@ def _build_legs(
                 "would count the holding twice"
             )
         return [LegSpec(funding, amount), LegSpec(f"income:{category}", -amount)]
+    if direction == "refund":
+        # Credits the ORIGINAL category rather than posting income. A 200
+        # refund on 500 of groceries should leave groceries at 300, not show
+        # 500 spent and 200 earned — the second is a worse description of the
+        # same event, and it inflates both totals.
+        return [LegSpec(funding, amount), LegSpec(expense_account, -amount)]
     if direction == "lent":
         if not counterparty:
             raise UnbalancedTransaction("'lent' needs a counterparty name")
@@ -122,7 +128,11 @@ def _build_legs(
             "amount": {"type": "number", "description": "Total amount in INR, positive"},
             "direction": {
                 "type": "string",
-                "enum": ["spent", "received", "lent", "borrowed"],
+                "enum": ["spent", "received", "refund", "lent", "borrowed"],
+                "description": (
+                    "'refund' is money back on something already recorded — it "
+                    "reduces that category rather than counting as income."
+                ),
             },
             "counterparty": {
                 "type": "string",

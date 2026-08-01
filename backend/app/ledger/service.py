@@ -98,6 +98,11 @@ DIRECTION_CASE = """
                            THEN 'invested'
                        WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
                                     JOIN accounts AS a ON a.id = l.account_id
+                                    WHERE l.transaction_id = t.id
+                                      AND a.type = 'expense' AND l.amount < 0)
+                           THEN 'refund'
+                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
+                                    JOIN accounts AS a ON a.id = l.account_id
                                     WHERE l.transaction_id = t.id AND a.type = 'income')
                            THEN 'received'
                        WHEN NOT EXISTS (SELECT 1 FROM transaction_legs AS l
