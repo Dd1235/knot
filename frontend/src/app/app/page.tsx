@@ -22,21 +22,13 @@ import Money from "@/components/ui/Money";
 import Pill from "@/components/ui/Pill";
 import Icon from "@/components/ui/Icon";
 import {
-  Boxes,
-  BrainCircuit,
-  ChartColumn,
   ChevronDown,
   ChevronUp,
-  Landmark,
   LogOut,
-  MessagesSquare,
   Mic,
-  ReceiptText,
   ArrowUp,
   Square,
   SquarePen,
-  TrendingUp,
-  Zap,
 } from "lucide-react";
 
 interface Message {
@@ -64,14 +56,14 @@ const TOOL_BADGES: Record<string, string> = {
 };
 
 const DESTINATIONS = [
-  { href: "/insights", name: "insights", label: "Spending insights", icon: ChartColumn },
-  { href: "/transactions", name: "ledger", label: "All transactions", icon: ReceiptText },
-  { href: "/investments", name: "investments", label: "Investments", icon: TrendingUp },
-  { href: "/debts", name: "debt", label: "Loans and debts", icon: Landmark },
-  { href: "/memory", name: "memory", label: "Memory inspector", icon: BrainCircuit },
-  { href: "/sessions", name: "history", label: "Past conversations", icon: MessagesSquare },
-  { href: "/architecture", name: "how it works", label: "How it works", icon: Boxes },
-  { href: "/demo", name: "race demo", label: "Concurrency demo", icon: Zap },
+  { href: "/insights", name: "insights", label: "Spending insights" },
+  { href: "/transactions", name: "ledger", label: "All transactions" },
+  { href: "/investments", name: "investments", label: "Investments" },
+  { href: "/debts", name: "debt", label: "Loans and debts" },
+  { href: "/memory", name: "memory", label: "Memory inspector" },
+  { href: "/sessions", name: "history", label: "Past conversations" },
+  { href: "/architecture", name: "how it works", label: "How it works" },
+  { href: "/demo", name: "race demo", label: "Concurrency demo" },
 ] as const;
 
 /** Grouped so the empty state shows the range, not just the easiest thing.
@@ -347,9 +339,8 @@ export default function ChatPage() {
               key={d.href}
               href={d.href}
               aria-label={d.label}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] text-ink-secondary transition-colors hover:bg-surface-raised hover:text-ink-primary"
+              className="shrink-0 rounded-lg px-2 py-1.5 text-[13px] text-ink-secondary transition-colors hover:bg-surface-raised hover:text-ink-primary"
             >
-              <Icon as={d.icon} size={13} />
               {d.name}
             </Link>
           ))}
@@ -446,7 +437,7 @@ export default function ChatPage() {
             e.preventDefault();
             send(input);
           }}
-          className={`mx-auto flex w-full max-w-2xl items-center gap-2 rounded-2xl border bg-surface-card p-2 transition-colors ${
+          className={`elevated mx-auto flex w-full max-w-2xl items-center gap-2 rounded-2xl border bg-surface-card p-2 transition-colors ${
             focused ? "border-brand-line" : "border-line"
           }`}
         >
