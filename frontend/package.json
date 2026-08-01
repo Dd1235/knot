@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint src",
     "check:tokens": "bash scripts/check-tokens.sh",
-    "smoke": "node e2e/smoke.mjs"
+    "smoke": "node e2e/smoke.mjs && node e2e/theme.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.27.0",
