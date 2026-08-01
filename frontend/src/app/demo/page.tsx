@@ -42,7 +42,8 @@ export default function DemoPage() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <AppHeader title="Race demo" back="/app" />
+      <AppHeader
+        measure="max-w-lg" title="Race demo" back="/app" />
 
       <main className="mx-auto w-full max-w-lg flex-1 space-y-5 overflow-y-auto px-4 py-6 pb-[max(env(safe-area-inset-bottom),1.5rem)]">
         <div className="space-y-2 text-sm text-ink-secondary">

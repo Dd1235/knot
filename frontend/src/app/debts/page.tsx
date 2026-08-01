@@ -148,7 +148,8 @@ export default function DebtsPage() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <AppHeader title="Debt" back="/app" />
+      <AppHeader
+        measure="max-w-2xl" title="Debt" back="/app" />
 
       <main className="mx-auto w-full max-w-2xl flex-1 space-y-3 overflow-y-auto px-4 py-4 pb-[max(env(safe-area-inset-bottom),2rem)]">
         {data === null ? (

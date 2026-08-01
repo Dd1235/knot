@@ -119,7 +119,8 @@ export default function TransactionsPage() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <AppHeader title="Transactions" back="/app">
+      <AppHeader
+        measure="max-w-3xl" title="Transactions" back="/app">
         <div className="pb-3">
           <input
             value={filter}

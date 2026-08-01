@@ -94,7 +94,8 @@ export default function ArchitecturePage() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <AppHeader title="How it works" back="/app" />
+      <AppHeader
+        measure="max-w-3xl" title="How it works" back="/app" />
 
       <main className="mx-auto w-full max-w-3xl flex-1 space-y-4 overflow-y-auto px-4 py-5 pb-[max(env(safe-area-inset-bottom),2rem)]">
         <section>

@@ -64,7 +64,8 @@ export default function MemoryPage() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <AppHeader title="Memory" back="/app">
+      <AppHeader
+        measure="max-w-2xl" title="Memory" back="/app">
         <div className="grid grid-cols-4 gap-2 pb-3">
           {stats.map((s) => (
             <Stat key={s.label} label={s.label} value={s.value ?? "–"} tone="brand" size="sm" />
