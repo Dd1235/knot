@@ -17,7 +17,7 @@ listener() { lsof -ti ":$1" -sTCP:LISTEN 2>/dev/null || true; }
 
 start() {
   if [ -z "$(listener $BACKEND_PORT)" ]; then
-    (cd "$ROOT/backend" && nohup uv run uvicorn app.main:app --port $BACKEND_PORT \
+    (cd "$ROOT/backend" && nohup uv run uvicorn app.main:app --reload --port $BACKEND_PORT \
       >/tmp/ledger-backend.log 2>&1 &)
     echo "backend  → starting on :$BACKEND_PORT   (logs: /tmp/ledger-backend.log)"
   else

@@ -6,8 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "check:tokens": "bash scripts/check-tokens.sh"
+    "lint": "eslint src",
+    "check:tokens": "bash scripts/check-tokens.sh",
+    "smoke": "node e2e/smoke.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.27.0",
