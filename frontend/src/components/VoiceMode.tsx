@@ -30,13 +30,20 @@ export default function VoiceMode({
   const [reply, setReply] = useState("");
   const [tool, setTool] = useState<string | null>(null);
   const closedRef = useRef(false);
+  /* True only while the DEVICE engine owns the overlay. The on-device loop
+   * re-arms itself from async continuations — speak()'s end callback (which
+   * stopSpeaking() deliberately fires), a reply that lands after an await —
+   * and each of those used to check only closedRef. Switching to live voice
+   * left them all pending, and the first one to fire restarted the device
+   * microphone underneath the realtime session: two agents, again. */
+  const deviceLiveRef = useRef(false);
   const silentRoundsRef = useRef(0);
   const interruptedRef = useRef(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const micRef = useRef<{ start: () => void } | null>(null);
   const begin = useCallback(() => {
-    if (closedRef.current) return;
+    if (closedRef.current || !deviceLiveRef.current) return;
     setState("listening");
     setTranscript("");
     micRef.current?.start();
@@ -56,7 +63,7 @@ export default function VoiceMode({
       } catch {
         answer = "Sorry, something went wrong — try again.";
       }
-      if (closedRef.current) return;
+      if (closedRef.current || !deviceLiveRef.current) return;
       setTranscript("");
       setReply(answer ?? "");
       if (answer) {
@@ -71,7 +78,7 @@ export default function VoiceMode({
       }
     },
     onSilence: () => {
-      if (closedRef.current) return;
+      if (closedRef.current || !deviceLiveRef.current) return;
       silentRoundsRef.current += 1;
       if (silentRoundsRef.current >= 2) onClose();
       else begin();
@@ -114,8 +121,10 @@ export default function VoiceMode({
     let live = true;
 
     if (engine === "device") {
+      deviceLiveRef.current = true;
       begin();
       return () => {
+        deviceLiveRef.current = false;
         live = false;
         mic.stop();
         stopSpeaking();
@@ -145,11 +154,16 @@ export default function VoiceMode({
       if (!live) return;
       realtimeRef.current = null;
       setFellBack(true);
+      // The fallback loop is device speech running under THIS effect's
+      // lifetime, so it claims device liveness here and the cleanup below
+      // releases it.
+      deviceLiveRef.current = true;
       begin();
     });
 
     return () => {
       live = false;
+      deviceLiveRef.current = false;
       session.stop();
       if (realtimeRef.current === session) realtimeRef.current = null;
       stopSpeaking();
