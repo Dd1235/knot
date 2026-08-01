@@ -47,9 +47,12 @@ export function Wordmark({ size = 20 }: { size?: number }) {
       {/* -0.02em: the mark is a round, open form, and default tracking leaves
           the K drifting away from it. Baseline alignment rather than centre,
           so the word sits on the type baseline like type. */}
+      {/* Instrument Serif, at 400 and slightly larger than the mark. A serif
+          at semibold thickens the thin strokes into mush, and its natural
+          sidebearings are generous enough that the tracking is left alone. */}
       <span
-        className="font-semibold leading-none"
-        style={{ fontSize: size * 0.95, letterSpacing: "-0.02em" }}
+        className="font-display leading-none"
+        style={{ fontSize: size * 1.15, letterSpacing: "0.005em" }}
       >
         Knot
       </span>

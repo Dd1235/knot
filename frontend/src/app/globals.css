@@ -304,6 +304,8 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Wordmark only — never body copy. */
+  --font-display: var(--font-instrument-serif);
 }
 
 @layer base {
