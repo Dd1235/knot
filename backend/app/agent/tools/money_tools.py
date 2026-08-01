@@ -116,13 +116,16 @@ async def set_opening_balance(ctx: ToolContext, args: dict) -> dict:
     "track_recurring",
     "Track a recurring commitment (subscription, rent, EMI, salary). It will be "
     "auto-posted to the ledger each period — do NOT also record it manually. "
-    "Salary or other regular income means direction 'received'.",
+    "Salary or other regular income means direction 'received'. "
+    "This is ALSO how you edit one: call it again with the same name to change "
+    "the amount, due day or cadence. Use rename_recurring to change the name "
+    "itself, and stop_recurring to cancel.",
     {
         "type": "object",
         "properties": {
             "name": {"type": "string", "description": "e.g. Netflix, Rent, Salary"},
             "amount": {"type": "number", "description": "Amount per period in INR, positive"},
-            "cadence": {"type": "string", "enum": ["monthly", "yearly"]},
+            "cadence": {"type": "string", "enum": ["monthly", "quarterly", "yearly"]},
             "due_day": {
                 "type": "integer",
                 "minimum": 1,
@@ -517,3 +520,48 @@ async def clear_limit(ctx: ToolContext, args: dict) -> dict:
 )
 async def suggest_limits(ctx: ToolContext, args: dict) -> dict:
     return {"suggestions": await limits.suggestions(ctx.user_handle)}
+
+
+@register(
+    "upcoming_commitments",
+    "What is due next and when — rent, EMIs, subscriptions, and the next time "
+    "money arrives. Call this for 'what's coming up', 'what do I owe this "
+    "month', or before saying whether something is affordable.",
+    {
+        "type": "object",
+        "properties": {
+            "horizon_days": {
+                "type": "integer",
+                "description": "How far ahead to look; default 45",
+            }
+        },
+    },
+)
+async def upcoming_commitments(ctx: ToolContext, args: dict) -> dict:
+    return await recurring.upcoming(
+        ctx.user_handle, horizon_days=int(args.get("horizon_days") or 45)
+    )
+
+
+@register(
+    "rename_recurring",
+    "Rename a tracked recurring item. Use when the user corrects what "
+    "something is called. To change an amount, date or cadence instead, call "
+    "track_recurring again with the SAME name — that edits it in place.",
+    {
+        "type": "object",
+        "properties": {
+            "old_name": {"type": "string"},
+            "new_name": {"type": "string"},
+        },
+        "required": ["old_name", "new_name"],
+    },
+)
+async def rename_recurring(ctx: ToolContext, args: dict) -> dict:
+    try:
+        row = await recurring.rename(ctx.user_handle, args["old_name"], args["new_name"])
+    except LedgerError as exc:
+        return {"error": str(exc)}
+    if row is None:
+        return {"error": f"nothing tracked called '{args['old_name']}'"}
+    return {"renamed": row}
