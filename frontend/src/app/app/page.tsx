@@ -8,14 +8,13 @@ import {
   PersonBalance,
   ToolEvent,
   getBalances,
-  inr,
   logout,
   sendChatStream,
 } from "@/lib/api";
 import { speak, stopSpeaking, unlockSpeech, useSpeechInput } from "@/lib/speech";
 import VoiceMode from "@/components/VoiceMode";
 import AppHeader from "@/components/ui/AppHeader";
-import Button, { buttonClass } from "@/components/ui/Button";
+import Button from "@/components/ui/Button";
 import Logo, { Wordmark } from "@/components/ui/Logo";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import CurrencyToggle from "@/components/ui/CurrencyToggle";
@@ -359,7 +358,7 @@ export default function ChatPage() {
         )}
       </AppHeader>
 
-      <main className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <main className="mx-auto w-full max-w-2xl flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.length === 0 && (
           <div className="mx-auto mt-6 max-w-2xl">
             <div className="text-center">
@@ -394,6 +393,36 @@ export default function ChatPage() {
               ))}
             </div>
           </div>
+        )}
+        {messages.map((m, i) =>
+          m.role === "user" ? (
+            <div key={i} className="flex justify-end">
+              <div className="max-w-[85%] rounded-2xl rounded-br-md bg-brand px-3.5 py-2 text-sm text-ink-on-brand">
+                {m.content}
+              </div>
+            </div>
+          ) : (
+            <div key={i} className="flex justify-start">
+              <div className="max-w-[85%]">
+                <div className="whitespace-pre-wrap rounded-2xl rounded-bl-md border border-line bg-surface-card px-3.5 py-2 text-sm">
+                  {m.content ||
+                    (m.streaming && (
+                      <span className="flex items-center gap-2 text-ink-secondary">
+                        <Logo size={16} state="thinking" className="text-brand-ink" />
+                        {m.liveTools?.length
+                          ? (TOOL_BADGES[m.liveTools[m.liveTools.length - 1]] ??
+                            m.liveTools[m.liveTools.length - 1])
+                          : "thinking"}
+                      </span>
+                    ))}
+                  {m.streaming && m.content && (
+                    <span className="animate-pulse text-brand-ink">▍</span>
+                  )}
+                </div>
+                <AssistantMeta message={m} />
+              </div>
+            </div>
+          )
         )}
         <div ref={bottomRef} />
       </main>

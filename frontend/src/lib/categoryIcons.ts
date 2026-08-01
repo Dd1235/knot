@@ -11,7 +11,6 @@ import {
   Gift,
   HandCoins,
   Handshake,
-  HeartPulse,
   House,
   Landmark,
   Laptop,
