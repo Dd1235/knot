@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.ledger import analytics, loans
+from app.ledger import loans, service
 
 
 @pytest.fixture
@@ -67,7 +67,9 @@ async def test_emi_reduces_debt_and_only_interest_counts_as_spend(user):
     before = await loans.outstanding_for(user, loans.account_for("Bike Loan"))
     assert before == Decimal("100000")
 
-    posted = await loans.post_due(user, today=date.today())
+    # Pinned: with a due_day of 5, this test passed or failed depending on
+    # what day of the month it ran.
+    posted = await loans.post_due(user, today=date(date.today().year, date.today().month, 20))
     assert posted, "an EMI should have been due"
     first = posted[0]
     assert Decimal(first["interest"]) == Decimal("1000.00")   # 100000 * 12%/12
@@ -76,9 +78,12 @@ async def test_emi_reduces_debt_and_only_interest_counts_as_spend(user):
     after = await loans.outstanding_for(user, loans.account_for("Bike Loan"))
     assert after == Decimal("100000") - Decimal(first["principal"])
 
-    # Only the interest reaches the spending total, not the whole payment.
-    summary = await analytics.summary(user, days=400)
-    assert Decimal(summary["total_spend"]) == Decimal("1000.00")
+    # Only the interest is spending. Asserted against the accounts rather than
+    # a windowed summary: the entry is dated to its due day, which may be in
+    # the future, and that has nothing to do with the claim being tested.
+    balances = {b["name"]: Decimal(b["balance"]) for b in await service.account_balances(user)}
+    assert balances["expense:interest"] == Decimal("1000.00")
+    assert "expense:emi" not in balances, "the principal must never be an expense"
 
 
 @pytest.mark.asyncio
@@ -86,7 +91,8 @@ async def test_posting_twice_does_not_pay_twice(user):
     await loans.add_loan(
         user, "Car Loan", Decimal("50000"), Decimal("10"), 12, emi=Decimal("4395.79")
     )
-    await loans.post_due(user, today=date.today())
+    on = date(date.today().year, date.today().month, 20)
+    await loans.post_due(user, today=on)
     outstanding = await loans.outstanding_for(user, loans.account_for("Car Loan"))
-    await loans.post_due(user, today=date.today())
+    await loans.post_due(user, today=on)
     assert await loans.outstanding_for(user, loans.account_for("Car Loan")) == outstanding

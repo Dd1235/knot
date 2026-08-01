@@ -385,3 +385,38 @@ async def test_cash_float_counts_only_bank_to_cash_transfers(user):
     closed = await analytics.cash_float(user)
     assert closed["accounted"] == "1200.00"
     assert closed["unaccounted"] == "3800.00"
+
+
+async def test_renaming_a_commitment_does_not_create_a_second_one(user):
+    """The name is the identity key, so a rename by restating produced two
+    rows and the user paid Netflix twice on paper."""
+    await recurring.upsert_commitment(user, "Netflx", Decimal("649"), due_day=12)
+    await recurring.rename(user, "Netflx", "Netflix")
+    listed = await recurring.list_commitments(user)
+    assert [c["name"] for c in listed["commitments"]] == ["Netflix"]
+
+
+async def test_renaming_onto_an_existing_name_is_refused(user):
+    await recurring.upsert_commitment(user, "Netflix", Decimal("649"))
+    await recurring.upsert_commitment(user, "Prime", Decimal("299"))
+    with pytest.raises(recurring.RecurringError):
+        await recurring.rename(user, "Prime", "netflix")
+
+
+async def test_a_quarterly_bill_is_a_third_of_its_amount_per_month(user):
+    await recurring.upsert_commitment(user, "Insurance", Decimal("9000"), cadence="quarterly")
+    listed = await recurring.list_commitments(user)
+    assert Decimal(listed["monthly_total"]) == Decimal("3000.00")
+
+
+def test_quarterly_only_fires_every_third_month():
+    from datetime import date, datetime
+
+    from app.ledger.recurring import _current_period
+
+    made = datetime(2026, 1, 10, tzinfo=IST)
+    # January, April, July — yes. February, March — no.
+    assert _current_period("quarterly", 10, made, date(2026, 1, 15)) == "2026-01"
+    assert _current_period("quarterly", 10, made, date(2026, 2, 15)) is None
+    assert _current_period("quarterly", 10, made, date(2026, 3, 15)) is None
+    assert _current_period("quarterly", 10, made, date(2026, 4, 15)) == "2026-04"
