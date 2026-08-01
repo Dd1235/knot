@@ -325,13 +325,17 @@ async def portfolio(user_handle: str) -> dict:
         )
         realised = Decimal((await cur.fetchone())[0])
 
-    cost = sum(Decimal(r["cost_basis"]) for r in rows)
+    # The Decimal("0") start is load-bearing: sum() over an empty sequence
+    # returns int 0, and the .quantize() below then raises AttributeError. That
+    # made this endpoint 500 for every user who held nothing — which is every
+    # new account — and took the list_holdings tool down mid-conversation.
+    cost = sum((Decimal(r["cost_basis"]) for r in rows), Decimal("0"))
     valued = [r for r in rows if r["market_value"] is not None]
-    market = sum(Decimal(r["market_value"]) for r in valued)
+    market = sum((Decimal(r["market_value"]) for r in valued), Decimal("0"))
     # Only holdings with a stated price can be marked to market; the rest are
     # carried at cost so the total never silently understates the portfolio.
     at_market = market + sum(
-        Decimal(r["cost_basis"]) for r in rows if r["market_value"] is None
+        (Decimal(r["cost_basis"]) for r in rows if r["market_value"] is None), Decimal("0")
     )
 
     return {

@@ -188,3 +188,17 @@ def test_quantities_never_render_in_scientific_notation():
     assert _plain(Decimal("40")) == "40"
     assert _plain(Decimal("310.44200000")) == "310.442"
     assert _plain(Decimal("0.00010000")) == "0.0001"
+
+
+@pytest.mark.asyncio
+async def test_portfolio_is_empty_not_broken_for_a_new_user():
+    """sum() over no rows returns int 0, and .quantize() on an int raises. This
+    endpoint 500'd for every account that held nothing."""
+    fresh = f"empty-{uuid.uuid4().hex[:12]}"
+    p = await holdings.portfolio(fresh)
+    assert p["holdings"] == []
+    assert Decimal(p["cost_basis"]) == 0
+    assert Decimal(p["market_value"]) == 0
+    assert Decimal(p["unrealised"]) == 0
+    assert Decimal(p["realised_gain"]) == 0
+    assert Decimal(p["unitemised"]) == 0
