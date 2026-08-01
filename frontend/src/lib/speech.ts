@@ -30,6 +30,16 @@ declare global {
   }
 }
 
+/** American English, not Indian.
+ *
+ * en-IN picks an Indian-accented system voice on most platforms, and its
+ * coverage is patchier than en-US — on several browsers the Indian voice
+ * simply does not exist and synthesis falls back to something worse. Amounts
+ * are still formatted in Indian digit grouping; this is only how it sounds.
+ */
+const SPEECH_LANG = "en-US";
+
+
 export function useSpeechInput(handlers: {
   onInterim: (text: string) => void;
   onFinal: (text: string) => void;
@@ -57,7 +67,7 @@ export function useSpeechInput(handlers: {
     const Ctor = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!Ctor || recognitionRef.current) return;
     const recognition = new Ctor();
-    recognition.lang = "en-IN";
+    recognition.lang = SPEECH_LANG;
     recognition.continuous = false;
     recognition.interimResults = true;
     finalRef.current = "";
@@ -98,7 +108,7 @@ export function speak(text: string, onEnd?: () => void) {
   }
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "en-IN";
+  utterance.lang = SPEECH_LANG;
   utterance.rate = 1.05;
 
   if (onEnd) {
