@@ -36,6 +36,10 @@ SCOPES = {"total", "group", "category"}
 NUDGE_PACE = 1.15
 # Far enough ahead that the month cannot recover without a change.
 URGENT_PACE = 1.5
+# Before this, a straight-line projection is arithmetic on noise: one heavy
+# Saturday on the 1st "projects" to thirty-one heavy Saturdays. Rent lands on
+# the 1st for most people, which makes day one the worst possible sample.
+MIN_DAYS_TO_PROJECT = 4
 
 
 def _month_bounds(today: date) -> tuple[datetime, datetime, int, int]:
@@ -174,8 +178,13 @@ async def status(user_handle: str, today: date | None = None) -> dict:
 
         share = float(spent / limit) if limit else 0.0
         pace = share / elapsed if elapsed else 0.0
-        # Straight-line from today to month end at the current rate.
-        projected = (spent / Decimal(day) * Decimal(days_in_month)).quantize(TWO_PLACES)
+        # Straight-line from today to month end at the current rate — but only
+        # once there is enough of the month to extrapolate from.
+        projected = (
+            (spent / Decimal(day) * Decimal(days_in_month)).quantize(TWO_PLACES)
+            if day >= MIN_DAYS_TO_PROJECT
+            else None
+        )
         limits.append(
             {
                 "scope": row["scope"],
@@ -185,8 +194,12 @@ async def status(user_handle: str, today: date | None = None) -> dict:
                 "left": str((limit - spent).quantize(TWO_PLACES)),
                 "share": round(share * 100, 1),
                 "pace": round(pace, 2),
-                "projected": str(projected),
-                "verdict": _verdict(pace, spent, limit),
+                "projected": str(projected) if projected is not None else None,
+                "verdict": (
+                    _verdict(pace, spent, limit)
+                    if day >= MIN_DAYS_TO_PROJECT or spent >= limit
+                    else "fine"
+                ),
             }
         )
 
