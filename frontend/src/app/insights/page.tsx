@@ -16,6 +16,7 @@ import Icon from "@/components/ui/Icon";
 import {
   ArrowLeftRight,
   Gauge,
+  Plus,
   Landmark,
   CalendarClock,
   CalendarDays,
@@ -28,6 +29,7 @@ import {
   Sun,
   Users,
   Wallet,
+  X,
 } from "lucide-react";
 import { GROUP_COLORS, GROUP_LABELS } from "@/lib/groups";
 import {
@@ -37,7 +39,7 @@ import {
   DailyFlow,
   Insight,
   DueItem,
-  LimitStatus,
+  LimitsResponse,
   Loan,
   PersonBalance,
   RecurringCommitment,
@@ -48,8 +50,10 @@ import {
   getAnalytics,
   getBalances,
   getCashFloat,
+  clearLimit,
   getLimits,
   getUpcoming,
+  setLimit,
   getLoans,
   getRecurring,
   getRhythm,
@@ -73,6 +77,67 @@ const CADENCE_SHORT: Record<string, string> = {
 };
 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** Adding a limit without asking the agent for it. Groups only — a limit per
+ *  category would be a form, and the agent is genuinely better at "keep me
+ *  under 10k for food" than a dropdown of thirty-three options. */
+function NewLimit({
+  onSave,
+  onCancel,
+}: {
+  onSave: (amount: number, scope: string, target: string) => void;
+  onCancel: () => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [target, setTarget] = useState("total");
+
+  const submit = () => {
+    const value = Number(amount);
+    if (value > 0) onSave(value, target === "total" ? "total" : "group", target === "total" ? "" : target);
+  };
+
+  return (
+    <div className="mt-3 space-y-2 border-t border-line pt-3">
+      <div className="flex flex-wrap gap-1">
+        {["total", "essentials", "discretionary", "debt"].map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTarget(t)}
+            className={`rounded-lg px-2 py-1 text-[11px] transition-colors ${
+              target === t
+                ? "bg-brand font-medium text-ink-on-brand"
+                : "border border-line text-ink-secondary hover:bg-surface-raised"
+            }`}
+          >
+            {t === "total" ? "everything" : GROUP_LABELS[t] ?? t}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-1.5">
+        <input
+          autoFocus
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+            if (e.key === "Escape") onCancel();
+          }}
+          inputMode="decimal"
+          placeholder="amount per month"
+          aria-label="Monthly limit amount"
+          className="min-w-0 flex-1 rounded-lg border border-line bg-surface-raised px-2 py-1 text-sm tabular-nums outline-none focus:border-brand-line"
+        />
+        <Button variant="tonal" tone="brand" onClick={submit}>
+          set
+        </Button>
+        <Button onClick={onCancel} aria-label="Cancel">
+          <Icon as={X} size={14} />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function SkeletonCard({ className }: { className: string }) {
   return (
@@ -279,12 +344,9 @@ export default function InsightsPage() {
   const [cash, setCash] = useState<CashFloat | null>(null);
   const [heat, setHeat] = useState<DailyFlow[] | null>(null);
   const [due, setDue] = useState<{ outgoing: DueItem[]; incoming: DueItem[] } | null>(null);
-  const [caps, setCaps] = useState<{
-    limits: LimitStatus[];
-    day: number;
-    days_in_month: number;
-    days_left: number;
-  } | null>(null);
+  const [caps, setCaps] = useState<LimitsResponse | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
   const [debt, setDebt] = useState<{
     loans: Loan[];
     total_outstanding: string;
@@ -604,10 +666,27 @@ export default function InsightsPage() {
   /* Colour the derivative, not the level. Half a limit spent is a crisis on
    * the 5th and unremarkable on the 25th, so the bar shows where you are
    * against the calendar rather than against the total. */
+  const saveLimit = async (scope: string, target: string) => {
+    const amount = Number(draft);
+    if (!(amount > 0)) return setEditing(null);
+    setCaps(await setLimit(amount, scope, target).catch(() => caps));
+    setEditing(null);
+  };
+
+  const removeLimit = async (scope: string, target: string) => {
+    setCaps(await clearLimit(scope, target).catch(() => caps));
+  };
+
   const limitsCard =
-    caps === null || caps.limits.length === 0 ? null : (
+    caps === null ? null : (
       <Card>
         <CardTitle icon={Gauge}>Monthly limits</CardTitle>
+        {caps.limits.length === 0 && editing !== "new" && (
+          <p className="mb-2 text-xs text-ink-secondary">
+            No caps set. Add one here, or just say &ldquo;keep me under 10k for
+            food&rdquo;.
+          </p>
+        )}
         <div className="space-y-3">
           {caps.limits.map((l) => {
             const tone =
@@ -623,10 +702,44 @@ export default function InsightsPage() {
                   <span className="min-w-0 truncate text-ink-secondary">
                     {l.scope === "total" ? "everything" : GROUP_LABELS[l.target] ?? l.target}
                   </span>
-                  <span className="shrink-0 text-xs">
+                  <span className="flex shrink-0 items-baseline gap-1.5 text-xs">
                     <Money value={l.spent} tone="neutral" />
-                    <span className="text-ink-muted"> of </span>
-                    <Money value={l.limit} tone="neutral" />
+                    <span className="text-ink-muted">of</span>
+                    {editing === `${l.scope}:${l.target}` ? (
+                      <input
+                        autoFocus
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onBlur={() => saveLimit(l.scope, l.target)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveLimit(l.scope, l.target);
+                          if (e.key === "Escape") setEditing(null);
+                        }}
+                        inputMode="decimal"
+                        aria-label={`Limit for ${l.target || "everything"}`}
+                        className="w-20 rounded border border-brand-line bg-surface-raised px-1.5 py-0.5 text-right tabular-nums outline-none"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDraft(String(Number(l.limit)));
+                          setEditing(`${l.scope}:${l.target}`);
+                        }}
+                        className="rounded px-1 underline decoration-dotted underline-offset-2 hover:bg-surface-raised"
+                        aria-label={`Change the limit for ${l.target || "everything"}`}
+                      >
+                        <Money value={l.limit} tone="neutral" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeLimit(l.scope, l.target)}
+                      aria-label={`Remove the limit for ${l.target || "everything"}`}
+                      className="text-ink-muted transition-colors hover:text-negative"
+                    >
+                      <Icon as={X} size={12} />
+                    </button>
                   </span>
                 </div>
                 <div className="relative mt-1 h-2 rounded-full bg-surface-raised">
@@ -647,7 +760,7 @@ export default function InsightsPage() {
                     <span className="text-negative">
                       over, {caps.days_left} day{caps.days_left === 1 ? "" : "s"} left
                     </span>
-                  ) : l.verdict === "urgent" || l.verdict === "ahead" ? (
+                  ) : (l.verdict === "urgent" || l.verdict === "ahead") && l.projected ? (
                     <>
                       on for <Money value={l.projected} tone="neutral" /> — ahead of
                       the month
@@ -663,6 +776,25 @@ export default function InsightsPage() {
             );
           })}
         </div>
+
+        {editing === "new" ? (
+          <NewLimit
+            onCancel={() => setEditing(null)}
+            onSave={async (amount, scope, target) => {
+              setCaps(await setLimit(amount, scope, target).catch(() => caps));
+              setEditing(null);
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditing("new")}
+            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-line py-1.5 text-[11px] text-ink-secondary transition-colors hover:bg-surface-raised hover:text-ink-primary"
+          >
+            <Icon as={Plus} size={12} />
+            add a limit
+          </button>
+        )}
       </Card>
     );
 
