@@ -522,3 +522,11 @@ export const getLimits = () =>
   api<{ limits: LimitStatus[]; day: number; days_in_month: number; days_left: number }>(
     "/analytics/limits",
   );
+
+export const getUpcoming = (horizonDays = 45) =>
+  api<{
+    outgoing: DueItem[];
+    incoming: DueItem[];
+    next_income: DueItem | null;
+    claimed_before_income: string;
+  }>(`/analytics/upcoming?horizon_days=${horizonDays}`);

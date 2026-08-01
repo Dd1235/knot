@@ -10,6 +10,7 @@ import Logo from "@/components/ui/Logo";
 import Money from "@/components/ui/Money";
 import SegmentedNav from "@/components/ui/SegmentedNav";
 import SpendHeatmap from "@/components/SpendHeatmap";
+import CommitmentCalendar from "@/components/CommitmentCalendar";
 import Stat from "@/components/ui/Stat";
 import Icon from "@/components/ui/Icon";
 import {
@@ -35,6 +36,7 @@ import {
   CashFloat,
   DailyFlow,
   Insight,
+  DueItem,
   LimitStatus,
   Loan,
   PersonBalance,
@@ -47,6 +49,7 @@ import {
   getBalances,
   getCashFloat,
   getLimits,
+  getUpcoming,
   getLoans,
   getRecurring,
   getRhythm,
@@ -275,6 +278,7 @@ export default function InsightsPage() {
   const [safe, setSafe] = useState<SafeToSpend | null>(null);
   const [cash, setCash] = useState<CashFloat | null>(null);
   const [heat, setHeat] = useState<DailyFlow[] | null>(null);
+  const [due, setDue] = useState<{ outgoing: DueItem[]; incoming: DueItem[] } | null>(null);
   const [caps, setCaps] = useState<{
     limits: LimitStatus[];
     day: number;
@@ -368,6 +372,9 @@ export default function InsightsPage() {
       .catch(() => {});
     getLimits()
       .then(setCaps)
+      .catch(() => {});
+    getUpcoming()
+      .then(setDue)
       .catch(() => {});
     // The heatmap spans half a year regardless of the period selector, so it
     // is fetched once rather than on every period change.
@@ -562,6 +569,11 @@ export default function InsightsPage() {
           </p>
         ) : (
           <>
+            {due && (due.outgoing.length > 0 || due.incoming.length > 0) ? (
+              <div className="mb-3 border-b border-line pb-3">
+                <CommitmentCalendar outgoing={due.outgoing} incoming={due.incoming} />
+              </div>
+            ) : null}
             <div className="space-y-2">
               {recurring.commitments.map((c) => (
                 <div
