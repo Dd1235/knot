@@ -36,10 +36,6 @@ export default function CurrencyToggle() {
     };
   }, [open]);
 
-  useEffect(() => {
-    if (open) setRate(currency.perRupee === 1 ? "" : String(1 / currency.perRupee));
-  }, [open, currency.perRupee]);
-
   const pick = (code: string) => {
     setCurrency(code);
     if (code === "INR") setOpen(false);
@@ -54,7 +50,12 @@ export default function CurrencyToggle() {
   return (
     <div className="relative" ref={boxRef}>
       <Button
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          // Seed the rate field as the panel opens rather than reacting to it
+          // having opened — the value is known at the moment of the click.
+          if (!open) setRate(currency.perRupee === 1 ? "" : String(1 / currency.perRupee));
+          setOpen(!open);
+        }}
         aria-expanded={open}
         aria-label="Display currency"
         title={`Showing amounts in ${currency.code}`}

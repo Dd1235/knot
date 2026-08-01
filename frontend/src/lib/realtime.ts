@@ -13,6 +13,17 @@ const SDP_URL = "https://api.openai.com/v1/realtime/calls";
 
 export type RealtimeState = "connecting" | "listening" | "thinking" | "speaking";
 
+/** An event off the OpenAI data channel. The wire format is large and evolving,
+ * so this stays open — but `unknown` rather than `any`, which forces each
+ * access below to say what it expects instead of silently trusting it. */
+type RealtimeEvent = {
+  type?: string;
+  transcript?: string;
+  error?: { message?: string };
+  response?: { output?: unknown[] };
+  [key: string]: unknown;
+};
+
 export interface RealtimeHandlers {
   onState: (state: RealtimeState) => void;
   onUserTranscript: (text: string) => void;
@@ -25,6 +36,19 @@ interface PendingCall {
   call_id: string;
   name: string;
   arguments: string;
+}
+
+/** Narrows an item off `response.output`, which carries several shapes. A cast
+ * would have compiled just as well and told us nothing when the wire format
+ * changes. */
+function isFunctionCall(item: unknown): item is PendingCall {
+  if (typeof item !== "object" || item === null) return false;
+  const candidate = item as Partial<PendingCall> & { type?: unknown };
+  return (
+    candidate.type === "function_call" &&
+    typeof candidate.call_id === "string" &&
+    typeof candidate.name === "string"
+  );
 }
 
 export class RealtimeSession {
@@ -124,7 +148,7 @@ export class RealtimeSession {
     if (this.dc?.readyState === "open") this.dc.send(JSON.stringify(event));
   }
 
-  private async onEvent(event: Record<string, any>, authHeaders: Record<string, string>) {
+  private async onEvent(event: RealtimeEvent, authHeaders: Record<string, string>) {
     switch (event.type) {
       case "input_audio_buffer.speech_started":
         this.handlers.onState("listening");
@@ -153,12 +177,10 @@ export class RealtimeSession {
   }
 
   private async handleToolCalls(
-    event: Record<string, any>,
+    event: RealtimeEvent,
     authHeaders: Record<string, string>,
   ) {
-    const calls: PendingCall[] = (event.response?.output ?? []).filter(
-      (item: Record<string, unknown>) => item.type === "function_call",
-    );
+    const calls = (event.response?.output ?? []).filter(isFunctionCall);
     if (calls.length === 0) return;
 
     this.handlers.onState("thinking");

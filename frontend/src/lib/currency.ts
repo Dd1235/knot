@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 /** Display currency.
  *
@@ -59,27 +59,37 @@ export function setCurrency(code: string, perRupee?: number): void {
   window.dispatchEvent(new Event(EVENT));
 }
 
+function subscribe(onChange: () => void) {
+  window.addEventListener(EVENT, onChange);
+  // Another tab changing it should not leave this one showing stale money.
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+/* useSyncExternalStore needs a stable snapshot: returning a fresh object each
+ * call makes React think the value changed on every render and loop forever.
+ * The cache is rebuilt only when the underlying strings actually differ. */
+const RUPEES: Currency = { code: "INR", locale: "en-IN", perRupee: 1 };
+let cached: Currency = RUPEES;
+
+function snapshot(): Currency {
+  const next = readCurrency();
+  if (
+    next.code !== cached.code ||
+    next.locale !== cached.locale ||
+    next.perRupee !== cached.perRupee
+  ) {
+    cached = next;
+  }
+  return cached;
+}
+
 /** Subscribes to changes, so every amount on screen updates at once. */
 export function useCurrency(): Currency {
-  const [currency, setState] = useState<Currency>(() => ({
-    code: "INR",
-    locale: "en-IN",
-    perRupee: 1,
-  }));
-
-  useEffect(() => {
-    const sync = () => setState(readCurrency());
-    sync();
-    window.addEventListener(EVENT, sync);
-    // Another tab changing it should not leave this one showing stale money.
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener(EVENT, sync);
-      window.removeEventListener("storage", sync);
-    };
-  }, []);
-
-  return currency;
+  return useSyncExternalStore(subscribe, snapshot, () => RUPEES);
 }
 
 const formatters = new Map<string, Intl.NumberFormat>();

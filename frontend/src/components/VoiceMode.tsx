@@ -32,14 +32,14 @@ export default function VoiceMode({
   const closedRef = useRef(false);
   const silentRoundsRef = useRef(0);
   const interruptedRef = useRef(false);
-  const startRef = useRef<() => void>(() => {});
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  const micRef = useRef<{ start: () => void } | null>(null);
   const begin = useCallback(() => {
     if (closedRef.current) return;
     setState("listening");
     setTranscript("");
-    startRef.current();
+    micRef.current?.start();
   }, []);
 
   const mic = useSpeechInput({
@@ -77,14 +77,19 @@ export default function VoiceMode({
       else begin();
     },
   });
-  startRef.current = mic.start;
+
+  // Assigned after commit, not during render: begin() is only ever called
+  // from an effect or an event handler, so it never needs the pre-commit value.
+  useEffect(() => {
+    micRef.current = mic;
+  });
 
   // On-device (Web Speech) is the default: free, and good enough for the
   // one-liners this app is mostly used for. Realtime is a deliberate opt-in —
   // it bills per minute of audio both ways, and it earns that on genuine
   // back-and-forth, where sub-second turns and barge-in actually matter.
   const realtimeRef = useRef<RealtimeSession | null>(null);
-  const [mode, setMode] = useState<"realtime" | "fallback">("fallback");
+  const [fellBack, setFellBack] = useState(false);
   const [engine, setEngine] = useState<"realtime" | "device">(() =>
     typeof window === "undefined"
       ? "device"
@@ -109,7 +114,6 @@ export default function VoiceMode({
     let live = true;
 
     if (engine === "device") {
-      setMode("fallback");
       begin();
       return () => {
         live = false;
@@ -118,7 +122,6 @@ export default function VoiceMode({
       };
     }
 
-    setMode("realtime");
     const session = new RealtimeSession({
       onState: (s: RealtimeState) => {
         if (!live || closedRef.current) return;
@@ -141,7 +144,7 @@ export default function VoiceMode({
       session.stop();
       if (!live) return;
       realtimeRef.current = null;
-      setMode("fallback");
+      setFellBack(true);
       begin();
     });
 
@@ -162,6 +165,7 @@ export default function VoiceMode({
     // on-device mode unable to start its microphone at all.
     stopSpeaking();
     silentRoundsRef.current = 0;
+    setFellBack(false);
     setReply("");
     setTranscript("");
     setEngine(next);
@@ -281,11 +285,11 @@ export default function VoiceMode({
         <p aria-live="polite" className="text-sm text-ink-secondary">
           {tool && state === "thinking" ? `${tool.replace(/_/g, " ")}…` : style.label}
         </p>
-        {mode === "fallback" && (
+        {(engine === "device" || fellBack) && (
           <p className="-mt-6 text-[11px] text-ink-muted">
             {engine === "device"
               ? "on-device speech — free, no audio leaves your phone"
-              : "realtime unavailable — using on-device speech"}
+              : "live voice unavailable — using on-device speech"}
           </p>
         )}
 

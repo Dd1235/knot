@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 /* Minimal typings for the (webkit-prefixed) Web Speech API. */
 interface RecognitionResult {
@@ -40,24 +40,34 @@ declare global {
 const SPEECH_LANG = "en-US";
 
 
+/** Capability checks don't change, so there is nothing to subscribe to. */
+const subscribeNever = () => () => {};
+
+const speechSupported = () =>
+  typeof window !== "undefined" &&
+  Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition);
+
+
 export function useSpeechInput(handlers: {
   onInterim: (text: string) => void;
   onFinal: (text: string) => void;
   onSilence?: () => void;
 }) {
-  const [supported, setSupported] = useState(false);
+  // Browser capability, not React state: it never changes, so subscribing is a
+  // no-op and the server snapshot is simply "no". Reading it in an effect and
+  // calling setState meant an extra render on every mount to learn something
+  // that was already knowable.
+  const supported = useSyncExternalStore(subscribeNever, speechSupported, () => false);
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<Recognition | null>(null);
   const finalRef = useRef("");
   const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
 
+  // Assigned in an effect rather than during render. Recognition callbacks all
+  // fire asynchronously, so they never observe the pre-commit value.
   useEffect(() => {
-    setSupported(
-      typeof window !== "undefined" &&
-        Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition)
-    );
-  }, []);
+    handlersRef.current = handlers;
+  });
 
   const stop = useCallback(() => {
     recognitionRef.current?.stop();
