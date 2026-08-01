@@ -27,3 +27,9 @@ out/
 *.log
 scratch/
 frontend/public/_seed.html
+
+# Video assets — generated locally, never committed
+*.mp4
+*.webm
+*.mov
+frontend/smoke-chat.png
