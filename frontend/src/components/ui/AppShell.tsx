@@ -14,7 +14,7 @@ export default function AppShell({
   children,
   actions,
   footer,
-  measure = "max-w-[1240px]",
+  measure = "max-w-310",
   contentClassName = "py-6",
 }: {
   children: ReactNode;

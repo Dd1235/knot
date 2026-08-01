@@ -1,31 +1,25 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   ContextTrace,
   PersonBalance,
   ToolEvent,
   getBalances,
   getSessionTrace,
-  logout,
   sendChatStream,
 } from "@/lib/api";
 import { stopSpeaking, unlockSpeech, useSpeechInput } from "@/lib/speech";
 import VoiceMode from "@/components/VoiceMode";
-import AppHeader from "@/components/ui/AppHeader";
+import AppShell, { PageTitle } from "@/components/ui/AppShell";
 import Button from "@/components/ui/Button";
-import Logo, { Wordmark } from "@/components/ui/Logo";
-import ThemeToggle from "@/components/ui/ThemeToggle";
-import CurrencyToggle from "@/components/ui/CurrencyToggle";
+import Logo from "@/components/ui/Logo";
 import Money from "@/components/ui/Money";
 import Pill from "@/components/ui/Pill";
 import Icon from "@/components/ui/Icon";
 import {
   ChevronDown,
   ChevronUp,
-  LogOut,
   Mic,
   ArrowUp,
   Square,
@@ -55,17 +49,6 @@ const TOOL_BADGES: Record<string, string> = {
   learn_rule: "rule saved",
   search_memory: "memory searched",
 };
-
-const DESTINATIONS = [
-  { href: "/insights", name: "insights", label: "Spending insights" },
-  { href: "/transactions", name: "ledger", label: "All transactions" },
-  { href: "/investments", name: "investments", label: "Investments" },
-  { href: "/debts", name: "debt", label: "Loans and debts" },
-  { href: "/memory", name: "memory", label: "Memory inspector" },
-  { href: "/sessions", name: "history", label: "Past conversations" },
-  { href: "/architecture", name: "how it works", label: "How it works" },
-  { href: "/demo", name: "race demo", label: "Concurrency demo" },
-] as const;
 
 /** Grouped so the empty state shows the range, not just the easiest thing.
  * Someone landing here has no idea this tracks EMIs, holdings or limits. */
@@ -168,7 +151,6 @@ export default function ChatPage() {
   const [people, setPeople] = useState<PersonBalance[]>([]);
   const [restoring, setRestoring] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
 
   /* Rehydrate the conversation you are actually in.
    *
@@ -312,15 +294,6 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiceOpen]);
 
-  const onSignOut = async () => {
-    if (!window.confirm("Sign out? Your ledger and memory stay put.")) return;
-    // Clear the local session pointer too, or the next sign-in resumes a
-    // conversation that belongs to the previous account.
-    localStorage.removeItem("ledger:session");
-    await logout().catch(() => {});
-    router.push("/login");
-  };
-
   const newSession = () => {
     localStorage.removeItem("ledger:session");
     setSessionId(null);
@@ -330,192 +303,178 @@ export default function ChatPage() {
     // what the agent learned from it stays in memory either way.
   };
 
-  return (
-    <div className="flex h-dvh flex-col">
-      {voiceOpen && (
-        <VoiceMode onUtterance={(text) => send(text)} onClose={() => setVoiceOpen(false)} />
+  /* One composer, two homes. On an empty conversation it sits in the hero —
+   * the product's primary action, not a strip at the bottom of a blank page.
+   * Once a conversation exists it drops to the footer. A JSX const rather
+   * than an inner component: an inner component gets a new identity every
+   * render, which remounts the input and loses focus on every keystroke. */
+  const heroMode = !restoring && messages.length === 0;
+  const composer = (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        send(input);
+      }}
+      className={`elevated flex w-full items-center gap-2 rounded-2xl border bg-surface-card p-2 transition-colors ${
+        focused ? "border-brand-line" : "border-line"
+      }`}
+    >
+      <input
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder={mic.listening ? "listening…" : "lent Priya 500 for lunch…"}
+        aria-label="Message"
+        className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-[15px] outline-none placeholder:text-ink-muted"
+      />
+      {mic.supported && (
+        <Button
+          variant="tonal"
+          tone={mic.listening ? "negative" : "neutral"}
+          onClick={mic.listening ? mic.stop : mic.start}
+          aria-label={mic.listening ? "Stop listening" : "Speak"}
+          className={`rounded-xl px-3.5 py-2.5 ${mic.listening ? "animate-pulse" : ""}`}
+        >
+          <Icon as={mic.listening ? Square : Mic} size={17} />
+        </Button>
       )}
-      <AppHeader
-        measure="max-w-2xl"
-        gold
-        title={<Wordmark size={21} />}
-        actions={
-          <>
-            {mic.supported && (
-              <Button
-                variant="tonal"
-                tone="brand"
-                onClick={() => {
-                  unlockSpeech();
-                  setVoiceOpen(true);
-                }}
-              >
-                voice
-              </Button>
-            )}
-            <Button
-              onClick={newSession}
-              title="Start a new conversation — memory persists across all of them"
-              aria-label="New conversation"
-            >
-              <span className="hidden sm:inline">new conversation</span>
-              <span className="sm:hidden">
-                <Icon as={SquarePen} size={15} />
-              </span>
-            </Button>
-            <Button onClick={onSignOut} aria-label="Sign out">
-              <Icon as={LogOut} size={15} />
-            </Button>
-            <CurrencyToggle />
-            <ThemeToggle />
-          </>
-        }
+      <Button
+        type="submit"
+        variant="primary"
+        size="md"
+        disabled={busy || !input.trim()}
+        aria-label="Send"
+        className="rounded-xl px-4"
       >
-        <nav
-          aria-label="Sections"
-          className="-mx-1 flex gap-0.5 overflow-x-auto pb-2.5 sm:flex-wrap sm:overflow-visible"
-        >
-          {DESTINATIONS.map((d) => (
-            <Link
-              key={d.href}
-              href={d.href}
-              aria-label={d.label}
-              className="shrink-0 rounded-lg px-2 py-1.5 text-[13px] text-ink-secondary transition-colors hover:bg-surface-raised hover:text-ink-primary"
-            >
-              {d.name}
-            </Link>
-          ))}
-        </nav>
-        {people.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-2.5">
-            {people.map((p) => (
-              <Pill
-                key={p.display_name}
-                tone={Number(p.balance) > 0 ? "positive" : "negative"}
-              >
-                {p.display_name} {Number(p.balance) > 0 ? "owes you" : "is owed"}{" "}
-                <Money value={p.balance} tone="neutral" />
-              </Pill>
-            ))}
-          </div>
-        )}
-      </AppHeader>
+        <Icon as={ArrowUp} size={17} />
+      </Button>
+    </form>
+  );
 
-      <main className="flex-1 overflow-y-auto px-4 py-4">
-        <div className="mx-auto w-full max-w-2xl space-y-3">
-        {messages.length === 0 && !restoring && (
-          <div className="mx-auto mt-6 max-w-2xl">
-            <div className="text-center">
-              <Logo size={44} className="mx-auto text-brand-ink" />
-              <h2 className="mt-3 text-[22px] font-semibold tracking-tight">
-                Just say what happened.
-              </h2>
-              <p className="mx-auto mt-1.5 max-w-md text-sm text-ink-secondary">
-                Knot keeps a real double-entry ledger and remembers the people, habits and
-                commitments behind it — so you never explain the same thing twice.
-              </p>
-            </div>
-
-            <div className="mt-6 space-y-3">
-              {EXAMPLE_GROUPS.map((group) => (
-                <div key={group.title}>
-                  <p className="mb-1.5 text-[10px] uppercase tracking-[0.08em] text-ink-muted">
-                    {group.title}
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {group.items.map((item) => (
-                      <button
-                        key={item}
-                        onClick={() => send(item)}
-                        className="rounded-lg bg-surface-card px-2.5 py-1.5 text-left text-[13px] text-ink-secondary transition-colors hover:bg-surface-raised hover:text-ink-primary"
-                      >
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {messages.map((m, i) =>
-          m.role === "user" ? (
-            <div key={i} className="flex justify-end">
-              <div className="max-w-[85%] rounded-2xl rounded-br-md bg-brand px-3.5 py-2 text-sm text-ink-on-brand">
-                {m.content}
-              </div>
-            </div>
-          ) : (
-            <div key={i} className="flex justify-start">
-              <div className="max-w-[85%]">
-                <div className="whitespace-pre-wrap rounded-2xl rounded-bl-md border border-line bg-surface-card px-3.5 py-2 text-sm">
-                  {m.content ||
-                    (m.streaming && (
-                      <span className="flex items-center gap-2 text-ink-secondary">
-                        <Logo size={16} state="thinking" className="text-brand-ink" />
-                        {m.liveTools?.length
-                          ? (TOOL_BADGES[m.liveTools[m.liveTools.length - 1]] ??
-                            m.liveTools[m.liveTools.length - 1])
-                          : "thinking"}
-                      </span>
-                    ))}
-                  {m.streaming && m.content && (
-                    <span className="animate-pulse text-brand-ink">▍</span>
-                  )}
-                </div>
-                <AssistantMeta message={m} />
-              </div>
-            </div>
-          )
-        )}
-          <div ref={bottomRef} />
-        </div>
-      </main>
-      {/* The composer is where the product actually happens, so it gets a
-          card's weight and a card's width rather than a full-bleed strip
-          welded to the bottom of the window. */}
-      <footer className="px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-2">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            send(input);
-          }}
-          className={`elevated mx-auto flex w-full max-w-2xl items-center gap-2 rounded-2xl border bg-surface-card p-2 transition-colors ${
-            focused ? "border-brand-line" : "border-line"
-          }`}
-        >
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder={mic.listening ? "listening…" : "lent Priya 500 for lunch…"}
-            aria-label="Message"
-            className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-[15px] outline-none placeholder:text-ink-muted"
-          />
+  return (
+    <AppShell
+      contentClassName="py-5"
+      actions={
+        <>
           {mic.supported && (
             <Button
               variant="tonal"
-              tone={mic.listening ? "negative" : "neutral"}
-              onClick={mic.listening ? mic.stop : mic.start}
-              aria-label={mic.listening ? "Stop listening" : "Speak"}
-              className={`rounded-xl px-3.5 py-2.5 ${mic.listening ? "animate-pulse" : ""}`}
+              tone="brand"
+              onClick={() => {
+                unlockSpeech();
+                setVoiceOpen(true);
+              }}
             >
-              <Icon as={mic.listening ? Square : Mic} size={17} />
+              voice
             </Button>
           )}
           <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            disabled={busy || !input.trim()}
-            aria-label="Send"
-            className="rounded-xl px-4"
+            onClick={newSession}
+            title="Start a new conversation — memory persists across all of them"
+            aria-label="New conversation"
           >
-            <Icon as={ArrowUp} size={17} />
+            <span className="hidden sm:inline">new conversation</span>
+            <span className="sm:hidden">
+              <Icon as={SquarePen} size={15} />
+            </span>
           </Button>
-        </form>
-      </footer>
-    </div>
+        </>
+      }
+      footer={
+        !heroMode && (
+          <footer className="px-6 pb-[max(env(safe-area-inset-bottom),1rem)] pt-2 sm:px-8">
+            <div className="mx-auto w-full max-w-310">
+              <div className="max-w-195">{composer}</div>
+            </div>
+          </footer>
+        )
+      }
+    >
+      {voiceOpen && (
+        <VoiceMode onUtterance={(text) => send(text)} onClose={() => setVoiceOpen(false)} />
+      )}
+      {people.length > 0 && (
+        <div className="mb-5 flex gap-2 overflow-x-auto">
+          {people.map((p) => (
+            <Pill
+              key={p.display_name}
+              tone={Number(p.balance) > 0 ? "positive" : "negative"}
+            >
+              {p.display_name} {Number(p.balance) > 0 ? "owes you" : "is owed"}{" "}
+              <Money value={p.balance} tone="neutral" />
+            </Pill>
+          ))}
+        </div>
+      )}
+
+      {heroMode ? (
+        <div>
+          <Logo size={40} className="text-brand-ink" />
+          <div className="mt-4">
+            <PageTitle>Just say what happened.</PageTitle>
+          </div>
+          <p className="mt-2 max-w-160 text-[15px] leading-relaxed text-ink-secondary">
+            Knot keeps a real double-entry ledger and remembers the people, habits and
+            commitments behind it — so you never explain the same thing twice.
+          </p>
+          <div className="mt-6 max-w-195">{composer}</div>
+          <div className="mt-8 grid gap-x-8 gap-y-5 sm:grid-cols-2">
+            {EXAMPLE_GROUPS.map((group) => (
+              <section key={group.title}>
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-muted">
+                  {group.title}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {group.items.map((item) => (
+                    <button
+                      key={item}
+                      onClick={() => send(item)}
+                      className="rounded-lg border border-line bg-surface-card px-3 py-1.5 text-left text-sm text-ink-secondary transition-colors hover:border-line-strong hover:bg-surface-raised hover:text-ink-primary"
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="max-w-195 space-y-3">
+          {messages.map((m, i) =>
+            m.role === "user" ? (
+              <div key={i} className="flex justify-end">
+                <div className="max-w-[85%] rounded-2xl rounded-br-md bg-brand px-3.5 py-2 text-sm text-ink-on-brand">
+                  {m.content}
+                </div>
+              </div>
+            ) : (
+              <div key={i} className="flex justify-start">
+                <div className="max-w-[85%]">
+                  <div className="whitespace-pre-wrap rounded-2xl rounded-bl-md border border-line bg-surface-card px-3.5 py-2 text-sm">
+                    {m.content ||
+                      (m.streaming && (
+                        <span className="flex items-center gap-2 text-ink-secondary">
+                          <Logo size={16} state="thinking" className="text-brand-ink" />
+                          {m.liveTools?.length
+                            ? (TOOL_BADGES[m.liveTools[m.liveTools.length - 1]] ??
+                              m.liveTools[m.liveTools.length - 1])
+                            : "thinking"}
+                        </span>
+                      ))}
+                    {m.streaming && m.content && (
+                      <span className="animate-pulse text-brand-ink">▍</span>
+                    )}
+                  </div>
+                  <AssistantMeta message={m} />
+                </div>
+              </div>
+            )
+          )}
+          <div ref={bottomRef} />
+        </div>
+      )}
+    </AppShell>
   );
 }

@@ -29,7 +29,7 @@ export const DESTINATIONS = [
  * the z-10 sticky date rows inside the transactions scroller. */
 export default function AppNav({
   actions,
-  measure = "max-w-[1240px]",
+  measure = "max-w-310",
 }: {
   actions?: ReactNode;
   measure?: string;
