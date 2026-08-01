@@ -148,3 +148,43 @@ async def test_a_later_buy_does_not_rename_the_instrument(user):
     await holdings.buy(user, "reliance", Decimal("5"), Decimal("1400"))
     p = await holdings.portfolio(user)
     assert p["holdings"][0]["display_name"] == "Reliance Industries"
+
+
+async def test_buying_by_amount_still_gets_a_named_holding(user):
+    """'Bought Pidilite for 1700' used to land in a category bucket, invisible
+    on the portfolio and lumped into one anonymous total."""
+    await funded(user)
+    await holdings.buy(user, "Pidilite", amount=Decimal("1700"), display_name="Pidilite Ltd")
+    p = await holdings.portfolio(user)
+    row = next(h for h in p["holdings"] if h["symbol"] == "pidilite")
+    assert row["units"] is None
+    assert row["avg_cost"] is None
+    assert Decimal(row["cost_basis"]) == Decimal("1700")
+    assert row["priced"] is False
+    assert Decimal(p["cost_basis"]) == Decimal("1700")
+
+
+async def test_units_and_amount_holdings_coexist(user):
+    await funded(user)
+    await holdings.buy(user, "reliance", Decimal("10"), Decimal("1000"))
+    await holdings.buy(user, "pidilite", amount=Decimal("1700"))
+    p = await holdings.portfolio(user)
+    assert {h["symbol"] for h in p["holdings"]} == {"reliance", "pidilite"}
+    assert Decimal(p["cost_basis"]) == Decimal("11700")
+
+
+async def test_buy_needs_either_units_or_an_amount(user):
+    await funded(user)
+    with pytest.raises(LedgerError):
+        await holdings.buy(user, "reliance")
+
+
+def test_quantities_never_render_in_scientific_notation():
+    """Decimal.normalize() turns 10 into '1E+1', which reached a description
+    the user reads as 'Sold 1E+1 infy'."""
+    from app.ledger.holdings import _plain
+
+    assert _plain(Decimal("10.00000000")) == "10"
+    assert _plain(Decimal("40")) == "40"
+    assert _plain(Decimal("310.44200000")) == "310.442"
+    assert _plain(Decimal("0.00010000")) == "0.0001"
