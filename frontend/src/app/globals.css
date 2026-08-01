@@ -14,23 +14,21 @@
      black" — while the light theme, at roughly twice the chroma, read as warm
      and deliberate. Same hue family, same intent, now visible. */
   /* Depth is the DISTANCE between layers, not the lightness of any one of
-     them. The previous pass lifted all three together, which kept them just
-     as close and still read flat. The base now drops while the card rises:
-     base->card goes 1.14 -> 1.22, card->raised 1.21 -> 1.30, and borders
-     1.43 -> 1.67. ink-muted rises with them, or it would have fallen to
-     2.83:1 on the new card. */
-  --surface-base: #100e0b;
+     them. The base sits near black while card and raised hold their ground,
+     so cards float instead of blending — and the lines lift with the gap,
+     since a border drawn for the old base was lost against the new one. */
+  --surface-base: #0c0a08;
   --surface-card: #26221e;
   --surface-raised: #39352e;
-  --surface-overlay: rgba(16, 14, 11, 0.97);
+  --surface-overlay: rgba(12, 10, 8, 0.97);
 
-  --line: #4b453e;
-  --line-strong: #68625a;
+  --line: #524b42;
+  --line-strong: #6e675d;
 
   --ink-primary: #f5f1e8;
-  --ink-secondary: #a8a093;
-  /* Decorative only (3.17:1 on card) — placeholders, strikethrough, rules. */
-  --ink-muted: #847f79;
+  --ink-secondary: #b5ad9f;
+  /* Decorative only by policy (4.3:1 on card) — placeholders, rules. */
+  --ink-muted: #8a847c;
   /* Elevation. On a dark surface a drop shadow alone does almost nothing —
      the top highlight is what actually makes an edge read as lifted. */
   --elevation: 0 1px 0 0 rgb(255 255 255 / 0.045) inset, 0 1px 2px rgb(0 0 0 / 0.5),
@@ -67,9 +65,9 @@
   --chart-4: #0ca3be;
   /* Residual bucket, deliberately achromatic so it can't impersonate a series. */
   --chart-other: #8a8172;
-  --chart-grid: #4b453e;
-  --chart-axis: #68625a;
-  --chart-tick: #a8a093;
+  --chart-grid: #524b42;
+  --chart-axis: #6e675d;
+  --chart-tick: #b5ad9f;
   --chart-label: #f5f1e8;
   --chart-track: #39352e;
   /* Sequential ramp for the spending heatmap. One hue, stepped evenly in OKLCH
@@ -199,17 +197,17 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --surface-base: #100e0b;
+  --surface-base: #0c0a08;
   --surface-card: #26221e;
   --surface-raised: #39352e;
-  --surface-overlay: rgba(16, 14, 11, 0.97);
+  --surface-overlay: rgba(12, 10, 8, 0.97);
 
-  --line: #4b453e;
-  --line-strong: #68625a;
+  --line: #524b42;
+  --line-strong: #6e675d;
 
   --ink-primary: #f5f1e8;
-  --ink-secondary: #a8a093;
-  --ink-muted: #847f79;
+  --ink-secondary: #b5ad9f;
+  --ink-muted: #8a847c;
   --elevation: 0 1px 0 0 rgb(255 255 255 / 0.045) inset, 0 1px 2px rgb(0 0 0 / 0.5),
     0 6px 16px -6px rgb(0 0 0 / 0.55);
   --ink-on-brand: #1a1712;
@@ -238,9 +236,9 @@
   --chart-3: #199e70;
   --chart-4: #0ca3be;
   --chart-other: #8a8172;
-  --chart-grid: #4b453e;
-  --chart-axis: #68625a;
-  --chart-tick: #a8a093;
+  --chart-grid: #524b42;
+  --chart-axis: #6e675d;
+  --chart-tick: #b5ad9f;
   --chart-label: #f5f1e8;
   --chart-track: #39352e;
 
