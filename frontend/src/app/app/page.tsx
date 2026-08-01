@@ -8,6 +8,7 @@ import {
   PersonBalance,
   ToolEvent,
   getBalances,
+  getSessionTrace,
   logout,
   sendChatStream,
 } from "@/lib/api";
@@ -165,12 +166,46 @@ export default function ChatPage() {
   const [busy, setBusy] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBalance[]>([]);
+  const [restoring, setRestoring] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
+  /* Rehydrate the conversation you are actually in.
+   *
+   * The session id survived a reload but its turns never did, so you came back
+   * to a blank screen while the agent still held the whole conversation — and
+   * anything you said was appended to a session that looked new. That is also
+   * why "new conversation" seemed to do nothing: it cleared a screen that was
+   * already empty.
+   *
+   * Loading the turns makes the visible conversation and the real one the same
+   * thing, which is the only version of this that isn't confusing. */
   useEffect(() => {
-    setSessionId(localStorage.getItem("ledger:session"));
+    const stored = localStorage.getItem("ledger:session");
+    setSessionId(stored);
     refreshBalances();
+    if (!stored) return setRestoring(false);
+
+    getSessionTrace(stored)
+      .then((r) => {
+        setMessages(
+          r.turns
+            .filter((t) => t.role === "user" || t.role === "assistant")
+            .map((t) => ({
+              role: t.role as "user" | "assistant",
+              content: t.content,
+              events: t.tool_calls ?? undefined,
+              trace: t.context_trace ?? undefined,
+            })),
+        );
+      })
+      .catch(() => {
+        // A bogus or expired id: the next message will mint a fresh session
+        // anyway, so drop it rather than resuming something that isn't there.
+        localStorage.removeItem("ledger:session");
+        setSessionId(null);
+      })
+      .finally(() => setRestoring(false));
   }, []);
 
   useEffect(() => {
@@ -178,8 +213,10 @@ export default function ChatPage() {
     // conversation dumped a first-time visitor halfway down the examples,
     // below the one line explaining what this is.
     if (messages.length === 0) return;
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, busy]);
+    // Jump, don't animate, when a restored conversation first paints — a
+    // smooth scroll through fifty turns is a long, pointless journey.
+    bottomRef.current?.scrollIntoView({ behavior: restoring ? "instant" : "smooth" });
+  }, [messages, busy, restoring]);
 
   const refreshBalances = () =>
     getBalances()
@@ -288,6 +325,9 @@ export default function ChatPage() {
     localStorage.removeItem("ledger:session");
     setSessionId(null);
     setMessages([]);
+    setInput("");
+    // Nothing is lost — the old conversation keeps its own row in history, and
+    // what the agent learned from it stays in memory either way.
   };
 
   return (
@@ -296,6 +336,7 @@ export default function ChatPage() {
         <VoiceMode onUtterance={(text) => send(text)} onClose={() => setVoiceOpen(false)} />
       )}
       <AppHeader
+        measure="max-w-2xl"
         gold
         title={<Wordmark size={21} />}
         actions={
@@ -360,8 +401,9 @@ export default function ChatPage() {
         )}
       </AppHeader>
 
-      <main className="mx-auto w-full max-w-2xl flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {messages.length === 0 && (
+      <main className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="mx-auto w-full max-w-2xl space-y-3">
+        {messages.length === 0 && !restoring && (
           <div className="mx-auto mt-6 max-w-2xl">
             <div className="text-center">
               <Logo size={44} className="mx-auto text-brand-ink" />
@@ -426,7 +468,8 @@ export default function ChatPage() {
             </div>
           )
         )}
-        <div ref={bottomRef} />
+          <div ref={bottomRef} />
+        </div>
       </main>
       {/* The composer is where the product actually happens, so it gets a
           card's weight and a card's width rather than a full-bleed strip
