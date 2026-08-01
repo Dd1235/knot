@@ -111,7 +111,11 @@ export async function sendChatStream(
       const event = JSON.parse(line.slice(6));
       if (event.type === "delta") callbacks.onDelta(event.text);
       else if (event.type === "tool") callbacks.onTool(event.tool);
-      else if (event.type === "done") {
+      else if (event.type === "error") {
+        // The server can only tell us something broke by sending it down the
+        // stream — the status line went out as 200 long before it knew.
+        throw new Error(event.detail ?? "the conversation failed mid-turn");
+      } else if (event.type === "done") {
         callbacks.onDone(event as ChatResponse);
         // Terminate immediately — don't depend on the server closing the pipe.
         try {
@@ -123,6 +127,10 @@ export async function sendChatStream(
       }
     }
   }
+  // Falling out of the loop means the body ended without a `done` frame — a
+  // dropped connection, or a server that died mid-turn. Returning quietly
+  // left the assistant bubble stuck "thinking" forever with no way to know.
+  throw new Error("the connection ended before the reply finished");
 }
 
 export interface AccountBalance {

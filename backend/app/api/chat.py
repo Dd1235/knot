@@ -1,4 +1,5 @@
 import json
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -11,6 +12,7 @@ from app.auth.deps import current_user
 from app.ledger import scheduled
 from app.memory import working
 
+log = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
@@ -41,22 +43,38 @@ async def chat_stream(body: ChatIn, x_user: str = Depends(current_user)):
     ctx = ToolContext(user_handle=x_user, session_id=str(session_id))
 
     async def sse():
-        async for event in run_turn_stream(ctx, history, body.message):
-            if event["type"] == "done":
-                await _persist_turn(session_id, body.message, event)
-                payload = {
-                    "type": "done",
-                    "session_id": str(session_id),
-                    "reply": event["reply"],
-                    "events": [
-                        {"tool": e.tool, "args": e.args, "result": e.result}
-                        for e in event["events"]
-                    ],
-                    "context_trace": event["context_trace"],
-                }
-                yield f"data: {json.dumps(payload, default=str)}\n\n"
-            else:
-                yield f"data: {json.dumps(event, default=str)}\n\n"
+        # A 200 and the headers are already flushed by the time anything can go
+        # wrong here, so an exception used to simply truncate the body: the
+        # client's read loop ended cleanly, `done` never arrived, and no reply
+        # and no error were shown. Every other failure in a turn — a tool
+        # raising, the model erroring, a serialization retry — became invisible
+        # that way. An error frame is the only channel left to say so.
+        try:
+            async for event in run_turn_stream(ctx, history, body.message):
+                if event["type"] == "done":
+                    await _persist_turn(session_id, body.message, event)
+                    payload = {
+                        "type": "done",
+                        "session_id": str(session_id),
+                        "reply": event["reply"],
+                        "events": [
+                            {"tool": e.tool, "args": e.args, "result": e.result}
+                            for e in event["events"]
+                        ],
+                        "context_trace": event["context_trace"],
+                    }
+                    yield f"data: {json.dumps(payload, default=str)}\n\n"
+                else:
+                    yield f"data: {json.dumps(event, default=str)}\n\n"
+        except Exception as exc:  # noqa: BLE001 — the stream is the only channel
+            log.exception("chat stream failed mid-turn")
+            # The exception class, never its message: those carry queries,
+            # rows and occasionally keys.
+            detail = (
+                f"Something went wrong ({type(exc).__name__}). Nothing was "
+                "half-recorded — the ledger only commits whole transactions."
+            )
+            yield f"data: {json.dumps({'type': 'error', 'detail': detail})}\n\n"
 
     return StreamingResponse(
         sse(),
