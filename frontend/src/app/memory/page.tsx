@@ -64,7 +64,9 @@ export default function MemoryPage() {
 
   return (
     <AppShell>
-      <PageTitle>Memory</PageTitle>
+      <div className="text-left">
+        <PageTitle>Memory</PageTitle>
+      </div>
 
       <div className="mt-5 grid max-w-2xl grid-cols-4 gap-2">
         {stats.map((s) => (
