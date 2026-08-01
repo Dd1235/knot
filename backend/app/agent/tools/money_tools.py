@@ -340,32 +340,42 @@ async def list_loans(ctx: ToolContext, args: dict) -> dict:
 
 @register(
     "buy_investment",
-    "Record BUYING a specific investment with units — shares, mutual fund "
-    "units, grams of gold, crypto. Use for 'bought 10 Reliance at 1380', "
-    "'20 units of Parag Flexi at 82'. If the user gives only a rupee amount "
-    "with no units, use record_transaction with the category instead.",
+    "Record BUYING a named investment — a stock, mutual fund, gold, crypto. "
+    "ALWAYS use this when the user names what they bought, even without "
+    "units: 'bought 10 Reliance at 1380' (quantity + unit_price) and 'put "
+    "1700 into Pidilite' or 'invested 5000 in Nifty 50' (amount) are both "
+    "this tool. Only fall back to record_transaction when there is no "
+    "instrument name at all, e.g. a generic 'SIP' with no fund named.",
     {
         "type": "object",
         "properties": {
             "symbol": {"type": "string", "description": "e.g. reliance, infy, parag_flexi"},
-            "quantity": {"type": "number", "description": "Units, shares or grams bought"},
-            "unit_price": {"type": "number", "description": "Price per unit in INR"},
+            "quantity": {"type": "number", "description": "Units, shares or grams, if stated"},
+            "unit_price": {"type": "number", "description": "Price per unit in INR, if stated"},
+            "amount": {
+                "type": "number",
+                "description": "Total INR put in, when no units were stated",
+            },
             "kind": {
                 "type": "string",
                 "enum": ["stocks", "mutual_funds", "gold", "crypto", "bonds", "elss", "etf"],
             },
             "account": {"type": "string", "description": "Paid from; default bank"},
         },
-        "required": ["symbol", "quantity", "unit_price"],
+        "required": ["symbol"],
     },
 )
 async def buy_investment(ctx: ToolContext, args: dict) -> dict:
+    qty = args.get("quantity")
+    price = args.get("unit_price")
+    total = args.get("amount")
     try:
         return await holdings.buy(
             ctx.user_handle,
             args["symbol"],
-            Decimal(str(args["quantity"])),
-            Decimal(str(args["unit_price"])),
+            Decimal(str(qty)) if qty is not None else None,
+            Decimal(str(price)) if price is not None else None,
+            amount=Decimal(str(total)) if total is not None else None,
             kind=(args.get("kind") or "stocks"),
             account=(args.get("account") or "bank").strip().lower(),
             raw_input=ctx.user_message,

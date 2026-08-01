@@ -33,6 +33,13 @@ class OverSale(LedgerError):
     pass
 
 
+def _plain(d: Decimal) -> str:
+    """Decimal.normalize() turns 10 into '1E+1', which then went straight into
+    a transaction description the user reads."""
+    d = d.normalize()
+    return f"{d:f}"
+
+
 def symbol_of(name: str) -> str:
     """'Reliance Industries' -> 'reliance_industries'. Stable, and legible in
     an account name."""
@@ -99,23 +106,39 @@ async def _annotate_leg(
 async def buy(
     user_handle: str,
     symbol: str,
-    quantity: Decimal,
-    unit_price: Decimal,
+    quantity: Decimal | None = None,
+    unit_price: Decimal | None = None,
     *,
+    amount: Decimal | None = None,
     kind: str = "stocks",
     account: str = "bank",
     display_name: str = "",
     raw_input: str = "",
     source: str = "text",
 ) -> dict:
-    """Buy units of an instrument. Money changes shape; net worth does not move."""
+    """Buy into a named instrument. Money changes shape; net worth does not move.
+
+    Units are optional. "Bought Pidilite for 1700" is how people usually say
+    it, and requiring a quantity meant those went to a category bucket instead
+    — invisible on the portfolio page and lumped into one anonymous total. An
+    instrument held by amount alone still has a name, a cost basis and a row;
+    it just cannot be valued per unit until units are known.
+    """
     from app.ledger import service
 
-    quantity = Decimal(quantity).quantize(EIGHT_PLACES)
-    unit_price = Decimal(unit_price).quantize(Decimal("0.0001"))
-    if quantity <= 0 or unit_price <= 0:
-        raise LedgerError("quantity and price must be positive")
-    cost = (quantity * unit_price).quantize(TWO_PLACES, ROUND_HALF_UP)
+    if quantity is not None and unit_price is not None:
+        quantity = Decimal(quantity).quantize(EIGHT_PLACES)
+        unit_price = Decimal(unit_price).quantize(Decimal("0.0001"))
+        if quantity <= 0 or unit_price <= 0:
+            raise LedgerError("quantity and price must be positive")
+        cost = (quantity * unit_price).quantize(TWO_PLACES, ROUND_HALF_UP)
+    elif amount is not None:
+        quantity = unit_price = None
+        cost = Decimal(amount).quantize(TWO_PLACES)
+        if cost <= 0:
+            raise LedgerError("amount must be positive")
+    else:
+        raise LedgerError("give either quantity and price, or an amount")
     holding = account_for(kind, symbol)
 
     async def _fn(conn: AsyncConnection) -> dict:
@@ -124,7 +147,9 @@ async def buy(
         posted = await service._post_in_conn(
             conn,
             user_id,
-            f"Bought {quantity.normalize()} {symbol.strip()}",
+            f"Bought {_plain(quantity)} {symbol.strip()}"
+            if quantity is not None
+            else f"Bought {symbol.strip()}",
             [LegSpec(holding, cost), LegSpec(account, -cost)],
             raw_input=raw_input,
             source=source,
@@ -133,8 +158,12 @@ async def buy(
         account_id = await service._ensure_account(conn, user_id, holding)
         await _link_account(conn, account_id, instrument_id)
         await _annotate_leg(conn, posted.id, account_id, quantity, unit_price, instrument_id)
-        return {"transaction_id": str(posted.id), "symbol": symbol_of(symbol),
-                "units": str(quantity.normalize()), "cost": str(cost)}
+        return {
+            "transaction_id": str(posted.id),
+            "symbol": symbol_of(symbol),
+            "units": _plain(quantity) if quantity is not None else None,
+            "cost": str(cost),
+        }
 
     return await run_serializable(_fn)
 
@@ -180,7 +209,7 @@ async def sell(
         if units_held <= 0:
             raise LedgerError(f"you hold no {symbol}")
         if quantity > units_held:
-            raise OverSale(f"cannot sell {quantity.normalize()} of {units_held.normalize()} held")
+            raise OverSale(f"cannot sell {_plain(quantity)} of {_plain(units_held)} held")
 
         avg_cost = cost_held / units_held
         cost_relieved = (quantity * avg_cost).quantize(TWO_PLACES, ROUND_HALF_UP)
@@ -194,7 +223,7 @@ async def sell(
         posted = await service._post_in_conn(
             conn,
             user_id,
-            f"Sold {quantity.normalize()} {symbol.strip()}",
+            f"Sold {_plain(quantity)} {symbol.strip()}",
             legs,
             raw_input=raw_input,
             source=source,
@@ -211,7 +240,7 @@ async def sell(
         )
         return {
             "transaction_id": str(posted.id),
-            "units_sold": str(quantity.normalize()),
+            "units_sold": _plain(quantity),
             "proceeds": str(proceeds),
             "cost_relieved": str(cost_relieved),
             "realised_gain": str(gain),
