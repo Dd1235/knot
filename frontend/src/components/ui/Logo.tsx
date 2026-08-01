@@ -42,7 +42,10 @@ export default function Logo({
 /** Full lockup: mark + wordmark, used in the app header and on the login page. */
 export function Wordmark({ size = 20 }: { size?: number }) {
   return (
-    <span className="inline-flex items-baseline gap-[0.45em]">
+    // The gap tracks the MARK's size, not the inherited font size — an em gap
+    // here shrank whenever the lockup sat in small-type context, welding the
+    // icon to the K at exactly the sizes where they need air.
+    <span className="inline-flex items-baseline" style={{ columnGap: Math.round(size * 0.45) }}>
       <Logo size={size} className="translate-y-[0.09em] text-brand-ink" />
       {/* -0.02em: the mark is a round, open form, and default tracking leaves
           the K drifting away from it. Baseline alignment rather than centre,
