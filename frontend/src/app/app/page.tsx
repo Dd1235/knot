@@ -18,6 +18,7 @@ import AppHeader from "@/components/ui/AppHeader";
 import Button, { buttonClass } from "@/components/ui/Button";
 import Logo from "@/components/ui/Logo";
 import ThemeToggle from "@/components/ui/ThemeToggle";
+import CurrencyToggle from "@/components/ui/CurrencyToggle";
 import Money from "@/components/ui/Money";
 import Pill from "@/components/ui/Pill";
 import { inputClass } from "@/components/ui/styles";
@@ -286,6 +287,7 @@ export default function ChatPage() {
             <Button onClick={onSignOut} aria-label="Sign out">
               <Icon as={LogOut} size={15} />
             </Button>
+            <CurrencyToggle />
             <ThemeToggle />
           </>
         }

@@ -1,11 +1,7 @@
-import { TONE_TEXT, type Tone } from "./styles";
+"use client";
 
-const FORMATTER = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+import { TONE_TEXT, type Tone } from "./styles";
+import { convert, formatterFor, useCurrency } from "@/lib/currency";
 
 const SIZE = {
   inline: "",
@@ -13,9 +9,9 @@ const SIZE = {
   hero: "text-4xl font-semibold tracking-tight",
 } as const;
 
-/** Money as a *figure*, not a string: the ₹ and the paise are demoted to 0.62em
- * secondary ink so the rupees read as the number. Tabular figures always, so
- * columns of amounts line up. */
+/** Money as a *figure*, not a string: the symbol and the minor unit are demoted
+ * to 0.62em secondary ink so the number reads as the number. Tabular figures
+ * always, so columns of amounts line up. */
 export default function Money({
   value,
   size = "inline",
@@ -29,7 +25,10 @@ export default function Money({
   signed?: boolean;
   className?: string;
 }) {
-  const amount = Number(value);
+  // The ledger is in rupees; this converts for display only, at a rate the
+  // user states. Every Money on screen re-renders together when it changes.
+  const currency = useCurrency();
+  const amount = convert(Number(value), currency);
   const resolved: Tone =
     tone === "auto"
       ? amount < 0
@@ -39,7 +38,7 @@ export default function Money({
           : "neutral"
       : tone;
 
-  const parts = FORMATTER.formatToParts(signed ? amount : Math.abs(amount));
+  const parts = formatterFor(currency).formatToParts(signed ? amount : Math.abs(amount));
 
   return (
     <span

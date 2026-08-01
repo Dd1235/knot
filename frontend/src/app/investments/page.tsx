@@ -58,7 +58,14 @@ function HoldingRow({ h }: { h: Holding }) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm">{h.display_name || h.symbol}</p>
         <p className="mt-0.5 text-[11px] text-ink-secondary">
-          {UNITS.format(Number(h.units))} @ <Money value={h.avg_cost} tone="neutral" /> avg
+          {h.units !== null && h.avg_cost !== null ? (
+            <>
+              {UNITS.format(Number(h.units))} @ <Money value={h.avg_cost} tone="neutral" /> avg
+            </>
+          ) : (
+            // Bought by amount. Real money, real name, just no per-unit maths.
+            <>amount invested · no units recorded</>
+          )}
         </p>
       </div>
 

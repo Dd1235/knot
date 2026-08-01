@@ -481,9 +481,10 @@ export interface Holding {
   symbol: string;
   display_name: string;
   kind: string;
-  units: string;
+  /** Null when bought as a rupee amount with no units stated. */
+  units: string | null;
   cost_basis: string;
-  avg_cost: string;
+  avg_cost: string | null;
   last_price: string | null;
   last_price_at: string | null;
   market_value: string | null;
