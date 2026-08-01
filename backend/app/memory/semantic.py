@@ -129,3 +129,111 @@ async def top_facts(user_handle: str, limit: int = 8) -> list[str]:
             (user_handle, limit),
         )
         return [row[0] for row in await cur.fetchall()]
+
+
+# A correction is a *different* belief about the same subject, so it will
+# usually land beyond DEDUP_DISTANCE and be inserted alongside the wrong one.
+# Matching a correction needs a looser net than deduplicating an identical
+# restatement does.
+CORRECTION_DISTANCE = 1.05
+
+
+async def correct(
+    user_handle: str, wrong: str, right: str, kind: str = "", subject: str = ""
+) -> dict:
+    """Replace a belief, keeping the one it replaced.
+
+    `superseded_by` has been on this table since the first migration, is
+    filtered out of every read, and was never once written — so a fact the
+    agent got wrong was permanent, and stating the truth just added a second
+    contradictory row beside it. Worse, if the correction happened to land
+    within DEDUP_DISTANCE it *reinforced* the wrong fact.
+
+    Superseding rather than deleting is what lets the inspector show how a
+    belief changed, which is the whole reason the column exists.
+    """
+    target_vector = to_pgvector(await embed_one(wrong))
+    new_vector = to_pgvector(await embed_one(f"{subject}: {right}" if subject else right))
+
+    async def _fn(conn: AsyncConnection) -> dict:
+        user_id = await ensure_user(conn, user_handle)
+        params: list = [target_vector, user_id]
+        kind_clause = ""
+        if kind:
+            kind_clause = "AND kind = %s"
+            params.append(kind)
+        params.append(target_vector)
+        cur = await conn.execute(
+            f"""
+            SELECT id, kind, subject, fact, embedding <-> %s::VECTOR AS distance
+            FROM semantic_facts
+            WHERE user_id = %s AND superseded_by IS NULL {kind_clause}
+            ORDER BY embedding <-> %s::VECTOR
+            LIMIT 1
+            """,
+            tuple(params),
+        )
+        old = await cur.fetchone()
+        if old is None or old[4] > CORRECTION_DISTANCE:
+            return {"found": False}
+
+        cur = await conn.execute(
+            """
+            INSERT INTO semantic_facts
+                (user_id, kind, subject, fact, embedding, confidence, evidence_count)
+            VALUES (%s, %s, %s, %s, %s::VECTOR, 0.9, 1)
+            RETURNING id
+            """,
+            # Confidence starts high: the user said it directly, which is
+            # stronger evidence than anything distilled from conversation.
+            (user_id, kind or old[1], subject or old[2], right, new_vector),
+        )
+        new_id = (await cur.fetchone())[0]
+        await conn.execute(
+            "UPDATE semantic_facts SET superseded_by = %s WHERE id = %s", (new_id, old[0])
+        )
+        return {
+            "found": True,
+            "replaced": old[3],
+            "with": right,
+            "fact_id": str(new_id),
+        }
+
+    return await run_serializable(_fn)
+
+
+async def forget(user_handle: str, description: str, kind: str = "") -> dict:
+    """Retire a fact without replacing it.
+
+    Marked superseded by itself: the row stops being read while the history
+    stays intact, and nothing in this system deletes what it once believed.
+    """
+    vector = to_pgvector(await embed_one(description))
+
+    async def _fn(conn: AsyncConnection) -> dict:
+        user_id = await ensure_user(conn, user_handle)
+        params: list = [vector, user_id]
+        kind_clause = ""
+        if kind:
+            kind_clause = "AND kind = %s"
+            params.append(kind)
+        params.append(vector)
+        cur = await conn.execute(
+            f"""
+            SELECT id, fact, embedding <-> %s::VECTOR AS distance
+            FROM semantic_facts
+            WHERE user_id = %s AND superseded_by IS NULL {kind_clause}
+            ORDER BY embedding <-> %s::VECTOR
+            LIMIT 1
+            """,
+            tuple(params),
+        )
+        row = await cur.fetchone()
+        if row is None or row[2] > CORRECTION_DISTANCE:
+            return {"found": False}
+        await conn.execute(
+            "UPDATE semantic_facts SET superseded_by = id WHERE id = %s", (row[0],)
+        )
+        return {"found": True, "forgot": row[1]}
+
+    return await run_serializable(_fn)

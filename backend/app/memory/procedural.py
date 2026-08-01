@@ -5,6 +5,7 @@ and Priya") stored with an embedding of its trigger phrase. Each turn, rules
 similar to the user's message are injected as standing instructions.
 """
 
+from psycopg import AsyncConnection
 from psycopg.rows import dict_row
 from psycopg.types.json import Json
 
@@ -117,3 +118,41 @@ async def recent_rules(user_handle: str, limit: int = 8) -> list[str]:
             (user_handle, limit),
         )
         return [row[0] for row in await cur.fetchall() if row[0]]
+
+
+async def cancel(user_handle: str, description: str) -> dict:
+    """Stop applying a rule the user taught.
+
+    `active` has been on this table since the first migration and is filtered
+    out of every read, but nothing ever set it false. So "stop splitting rent
+    three ways" had nowhere to go: the rule stayed live and kept being injected
+    as a standing instruction on every turn. Re-teaching could overwrite a rule
+    only if the new phrasing landed within 0.3 — a cancellation with no
+    replacement had no path at all.
+
+    Matched at MATCH_DISTANCE, the same loose net used to inject rules: if a
+    phrase is close enough to trigger a rule, it is close enough to cancel it.
+    """
+    vector = to_pgvector(await embed_one(description))
+
+    async def _fn(conn: AsyncConnection) -> dict:
+        user_id = await ensure_user(conn, user_handle)
+        cur = await conn.execute(
+            """
+            SELECT id, rule, trigger_embedding <-> %s::VECTOR AS distance
+            FROM procedural_rules
+            WHERE user_id = %s AND active
+            ORDER BY trigger_embedding <-> %s::VECTOR
+            LIMIT 1
+            """,
+            (vector, user_id, vector),
+        )
+        row = await cur.fetchone()
+        if row is None or row[2] > MATCH_DISTANCE:
+            return {"found": False}
+        await conn.execute(
+            "UPDATE procedural_rules SET active = false WHERE id = %s", (row[0],)
+        )
+        return {"found": True, "cancelled": row[1].get("instruction", "")}
+
+    return await run_serializable(_fn)
