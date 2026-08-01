@@ -60,56 +60,60 @@ class PostedTransaction:
 
 
 # How a transaction is described to a human, derived from its legs rather than
-# stored. Order matters: first match wins.
+# stored.
 #
-# Three of these branches exist because the old four-branch version fell through
-# to 'spent' for anything it did not recognise, and that produced outright lies
-# on the most-looked-at screen: "borrowed 5,000 from Priya" read as *spent*
-# 5,000, a cash withdrawal read as spending, and so did every SIP.
+# Computed as one grouped pass over the legs, not as a CASE full of correlated
+# EXISTS subqueries. The subquery version issued roughly eighteen of them per
+# row — GROUP_CASE embedded DIRECTION_CASE, so every branch ran twice — and
+# took 27 seconds to render 100 transactions. This reads identically and runs
+# in milliseconds.
+LEG_FLAGS = """
+        SELECT l.transaction_id,
+               COALESCE(SUM(l.amount) FILTER (WHERE l.amount > 0), 0) AS amount,
+               bool_or(a.type = 'liability' AND a.name != 'equity:opening'
+                       AND l.amount > 0) AS f_repaid,
+               bool_or(a.type = 'liability' AND a.name != 'equity:opening'
+                       AND l.amount < 0) AS f_borrowed,
+               bool_or(a.type = 'receivable' AND l.amount > 0) AS f_lent,
+               bool_or(a.type = 'receivable' AND l.amount < 0) AS f_settled,
+               bool_or(a.name LIKE 'invest:%%' AND l.amount > 0) AS f_invested,
+               bool_or(a.name LIKE 'invest:%%' AND l.amount < 0) AS f_sold,
+               bool_or(a.type = 'expense' AND l.amount < 0) AS f_refund,
+               bool_or(a.type = 'income') AS f_income,
+               bool_and(a.type = 'asset') AS f_all_asset,
+               string_agg(DISTINCT p.display_name, ', ') AS people
+        FROM transaction_legs AS l
+        JOIN accounts AS a ON a.id = l.account_id
+        LEFT JOIN people AS p ON p.id = a.person_id
+        GROUP BY l.transaction_id
+"""
+
+# Order matters: first match wins. Three of these branches exist because an
+# earlier version fell through to 'spent' for anything it did not recognise,
+# so "borrowed 5,000 from Priya" read as *spent* 5,000, a cash withdrawal read
+# as spending, and so did every SIP.
+def _flags_for(subquery: str) -> str:
+    """LEG_FLAGS, bounded to a set of transaction ids so the leg scan is the
+    size of the page rather than the size of the ledger."""
+    return LEG_FLAGS.replace(
+        "GROUP BY", f"WHERE l.transaction_id IN ({subquery})\n        GROUP BY"
+    )
+
+
 DIRECTION_CASE = """
                    CASE
                        WHEN t.metadata->>'voids' IS NOT NULL THEN 'reversal'
-                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
-                                    JOIN accounts AS a ON a.id = l.account_id
-                                    WHERE l.transaction_id = t.id
-                                      AND a.type = 'liability'
-                                      AND a.name != 'equity:opening' AND l.amount > 0)
-                           THEN 'repaid'
-                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
-                                    JOIN accounts AS a ON a.id = l.account_id
-                                    WHERE l.transaction_id = t.id
-                                      AND a.type = 'liability'
-                                      AND a.name != 'equity:opening' AND l.amount < 0)
-                           THEN 'borrowed'
-                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
-                                    JOIN accounts AS a ON a.id = l.account_id
-                                    WHERE l.transaction_id = t.id
-                                      AND a.type = 'receivable' AND l.amount > 0)
-                           THEN 'lent'
-                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
-                                    JOIN accounts AS a ON a.id = l.account_id
-                                    WHERE l.transaction_id = t.id
-                                      AND a.type = 'receivable' AND l.amount < 0)
-                           THEN 'settled'
-                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
-                                    JOIN accounts AS a ON a.id = l.account_id
-                                    WHERE l.transaction_id = t.id
-                                      AND a.name LIKE 'invest:%%' AND l.amount > 0)
-                           THEN 'invested'
-                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
-                                    JOIN accounts AS a ON a.id = l.account_id
-                                    WHERE l.transaction_id = t.id
-                                      AND a.type = 'expense' AND l.amount < 0)
-                           THEN 'refund'
-                       WHEN EXISTS (SELECT 1 FROM transaction_legs AS l
-                                    JOIN accounts AS a ON a.id = l.account_id
-                                    WHERE l.transaction_id = t.id AND a.type = 'income')
-                           THEN 'received'
-                       WHEN NOT EXISTS (SELECT 1 FROM transaction_legs AS l
-                                        JOIN accounts AS a ON a.id = l.account_id
-                                        WHERE l.transaction_id = t.id
-                                          AND a.type != 'asset')
-                           THEN 'transfer'
+                       WHEN lf.f_repaid    THEN 'repaid'
+                       WHEN lf.f_borrowed  THEN 'borrowed'
+                       WHEN lf.f_lent      THEN 'lent'
+                       WHEN lf.f_settled   THEN 'settled'
+                       WHEN lf.f_invested  THEN 'invested'
+                       -- Before f_income: a sale credits income:capital_gains,
+                       -- so it would otherwise read as ordinary income.
+                       WHEN lf.f_sold      THEN 'sold'
+                       WHEN lf.f_refund    THEN 'refund'
+                       WHEN lf.f_income    THEN 'received'
+                       WHEN lf.f_all_asset THEN 'transfer'
                        ELSE 'spent'
                    END"""
 
@@ -119,12 +123,12 @@ DIRECTION_CASE = """
 #
 # One flat category cannot serve both an inflow and an outflow: `rent` is mapped
 # to essentials, so rent RECEIVED — a landlord's income — was rendering as an
-# essential expense. The legs already know which way the money went, so the
-# group is derived from them and the lookup table only has to describe expenses.
+# essential expense. The legs already know which way the money went.
 GROUP_CASE = f"""
                    CASE {DIRECTION_CASE}
                        WHEN 'received' THEN 'income'
                        WHEN 'invested' THEN 'savings_invest'
+                       WHEN 'sold' THEN 'savings_invest'
                        WHEN 'borrowed' THEN 'debt'
                        WHEN 'repaid' THEN 'debt'
                        WHEN 'transfer' THEN 'transfer'
@@ -644,29 +648,39 @@ async def recent_transactions(user_handle: str, limit: int = 20) -> list[dict]:
     async with pool().connection() as conn:
         cur = await conn.execute(
             f"""
+            WITH picked AS (
+                SELECT t.id, t.user_id, t.occurred_at, t.description, t.category,
+                       t.source, t.raw_input, t.metadata
+                FROM transactions AS t
+                JOIN users AS u ON u.id = t.user_id
+                WHERE u.handle = %s
+                ORDER BY t.occurred_at DESC
+                LIMIT %s
+            ),
+            -- Flags for the picked rows only, so the leg scan is bounded by
+            -- the page size rather than by the whole ledger.
+            lf AS (
+                {_flags_for("SELECT id FROM picked")}
+            ),
+            voided AS (
+                SELECT DISTINCT v.metadata->>'voids' AS target
+                FROM transactions AS v
+                WHERE v.user_id IN (SELECT DISTINCT user_id FROM picked)
+                  AND v.metadata->>'voids' IS NOT NULL
+            )
             SELECT t.id::STRING, t.occurred_at, t.description, t.category,
                    t.source::STRING, t.raw_input,
                    t.metadata->>'annotation' AS annotation,
                    t.metadata->>'annotation_kind' AS annotation_kind,
                    {GROUP_CASE} AS grp,
-                   (SELECT COALESCE(SUM(l.amount) FILTER (WHERE l.amount > 0), 0)
-                    FROM transaction_legs AS l
-                    WHERE l.transaction_id = t.id)::STRING AS amount,
+                   lf.amount::STRING AS amount,
                    {DIRECTION_CASE} AS direction,
-                   (SELECT string_agg(p.display_name, ', ')
-                    FROM transaction_legs AS l
-                    JOIN accounts AS a ON a.id = l.account_id
-                    JOIN people AS p ON p.id = a.person_id
-                    WHERE l.transaction_id = t.id) AS people,
-                   EXISTS(SELECT 1 FROM transactions AS v
-                          WHERE v.user_id = t.user_id
-                            AND v.metadata->>'voids' = t.id::STRING) AS voided
-            FROM transactions AS t
-            JOIN users AS u ON u.id = t.user_id
+                   lf.people,
+                   EXISTS(SELECT 1 FROM voided WHERE target = t.id::STRING) AS voided
+            FROM picked AS t
+            JOIN lf ON lf.transaction_id = t.id
             LEFT JOIN category_groups AS cg ON cg.category = t.category
-            WHERE u.handle = %s
             ORDER BY t.occurred_at DESC
-            LIMIT %s
             """,
             (user_handle, limit),
         )

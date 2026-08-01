@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 from psycopg.rows import dict_row
 
 from app.db.pool import pool
-from app.ledger.service import DIRECTION_CASE, GROUP_CASE
+from app.ledger.service import DIRECTION_CASE, GROUP_CASE, _flags_for
 
 IST = ZoneInfo("Asia/Kolkata")
 TWO_PLACES = Decimal("0.01")
@@ -197,22 +197,33 @@ async def export_rows(user_handle: str, days: int) -> list[dict]:
     async with pool().connection() as conn:
         cur = await conn.execute(
             f"""
+            WITH picked AS (
+                SELECT t.id, t.user_id, t.occurred_at, t.description,
+                       t.category, t.source, t.metadata
+                FROM transactions AS t
+                JOIN users AS u ON u.id = t.user_id
+                WHERE u.handle = %s AND t.occurred_at >= %s AND t.occurred_at < %s
+            ),
+            lf AS (
+                {_flags_for("SELECT id FROM picked")}
+            ),
+            voided AS (
+                SELECT DISTINCT v.metadata->>'voids' AS target
+                FROM transactions AS v
+                WHERE v.user_id IN (SELECT DISTINCT user_id FROM picked)
+                  AND v.metadata->>'voids' IS NOT NULL
+            )
             SELECT ((t.occurred_at AT TIME ZONE 'Asia/Kolkata')::DATE)::STRING AS txn_date,
                    t.description,
                    t.category,
                    {GROUP_CASE} AS grp,
-                   (SELECT COALESCE(SUM(l.amount) FILTER (WHERE l.amount > 0), 0)
-                    FROM transaction_legs AS l
-                    WHERE l.transaction_id = t.id)::STRING AS amount,
+                   lf.amount::STRING AS amount,
                    {DIRECTION_CASE} AS direction,
                    t.source::STRING AS source,
-                   EXISTS(SELECT 1 FROM transactions AS v
-                          WHERE v.user_id = t.user_id
-                            AND v.metadata->>'voids' = t.id::STRING) AS voided
-            FROM transactions AS t
-            JOIN users AS u ON u.id = t.user_id
+                   EXISTS(SELECT 1 FROM voided WHERE target = t.id::STRING) AS voided
+            FROM picked AS t
+            JOIN lf ON lf.transaction_id = t.id
             LEFT JOIN category_groups AS cg ON cg.category = t.category
-            WHERE u.handle = %s AND t.occurred_at >= %s AND t.occurred_at < %s
             ORDER BY t.occurred_at, t.id
             """,
             (user_handle, start, end),
