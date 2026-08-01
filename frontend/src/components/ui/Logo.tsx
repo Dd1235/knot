@@ -42,9 +42,17 @@ export default function Logo({
 /** Full lockup: mark + wordmark, used in the app header and on the login page. */
 export function Wordmark({ size = 20 }: { size?: number }) {
   return (
-    <span className="inline-flex items-center gap-2">
-      <Logo size={size} className="text-brand-ink" />
-      <span className="font-semibold tracking-tight">Knot</span>
+    <span className="inline-flex items-baseline gap-[0.45em]">
+      <Logo size={size} className="translate-y-[0.09em] text-brand-ink" />
+      {/* -0.02em: the mark is a round, open form, and default tracking leaves
+          the K drifting away from it. Baseline alignment rather than centre,
+          so the word sits on the type baseline like type. */}
+      <span
+        className="font-semibold leading-none"
+        style={{ fontSize: size * 0.95, letterSpacing: "-0.02em" }}
+      >
+        Knot
+      </span>
     </span>
   );
 }

@@ -26,7 +26,7 @@ export default function AppHeader({
       }`}
     >
       <div className="flex h-14 items-center justify-between gap-3">
-        <h1 className="flex items-center gap-2 truncate text-lg font-semibold tracking-tight">
+        <h1 className="flex shrink-0 items-center gap-2 text-[19px] font-semibold tracking-[-0.015em]">
           {title}
         </h1>
         <div className="flex shrink-0 items-center gap-2">

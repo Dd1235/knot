@@ -16,12 +16,11 @@ import { speak, stopSpeaking, unlockSpeech, useSpeechInput } from "@/lib/speech"
 import VoiceMode from "@/components/VoiceMode";
 import AppHeader from "@/components/ui/AppHeader";
 import Button, { buttonClass } from "@/components/ui/Button";
-import Logo from "@/components/ui/Logo";
+import Logo, { Wordmark } from "@/components/ui/Logo";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import CurrencyToggle from "@/components/ui/CurrencyToggle";
 import Money from "@/components/ui/Money";
 import Pill from "@/components/ui/Pill";
-import { inputClass } from "@/components/ui/styles";
 import Icon from "@/components/ui/Icon";
 import {
   Boxes,
@@ -34,7 +33,9 @@ import {
   MessagesSquare,
   Mic,
   ReceiptText,
+  ArrowUp,
   Square,
+  SquarePen,
   TrendingUp,
   Zap,
 } from "lucide-react";
@@ -74,12 +75,40 @@ const DESTINATIONS = [
   { href: "/demo", name: "race demo", label: "Concurrency demo", icon: Zap },
 ] as const;
 
-const SUGGESTIONS = [
-  "lent Priya ₹500 for lunch",
-  "chai 15",
-  "gpay'd 40 for auto",
-  "remember: rent is split 3 ways with Kiran and Meera",
-  "did priya pay me back?",
+/** Grouped so the empty state shows the range, not just the easiest thing.
+ * Someone landing here has no idea this tracks EMIs, holdings or limits. */
+const EXAMPLE_GROUPS = [
+  {
+    title: "everyday",
+    items: ["chai 15", "gpay'd 40 for auto", "paid 200 cash for vegetables"],
+  },
+  {
+    title: "people",
+    items: ["lent Priya ₹500 for lunch", "did Priya pay me back?", "borrowed 2000 from Arjun"],
+  },
+  {
+    title: "money in",
+    items: ["salary 95000 on the 1st every month", "got 1200 rent from the tenant"],
+  },
+  {
+    title: "investing",
+    items: ["bought 10 Reliance at 1380", "put 5000 into Nifty 50", "Reliance is at 1450 now"],
+  },
+  {
+    title: "borrowing",
+    items: ["I have a 5 lakh car loan at 9% for 5 years", "how much of my EMI is interest?"],
+  },
+  {
+    title: "limits",
+    items: ["keep me under 10k for food", "how am I doing this month?"],
+  },
+  {
+    title: "it remembers",
+    items: [
+      "remember: rent is split 3 ways with Kiran and Meera",
+      "no, Priya is my flatmate not my sister",
+    ],
+  },
 ];
 
 function traceCount(trace?: ContextTrace): number {
@@ -154,6 +183,10 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
+    // Only once there is something to follow. Scrolling on an empty
+    // conversation dumped a first-time visitor halfway down the examples,
+    // below the one line explaining what this is.
+    if (messages.length === 0) return;
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, busy]);
 
@@ -220,6 +253,7 @@ export default function ChatPage() {
   );
 
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
   const mic = useSpeechInput({
     onInterim: setInput,
     // `voice: true` makes the reply spoken aloud. Suppressed while the voice
@@ -261,12 +295,7 @@ export default function ChatPage() {
       )}
       <AppHeader
         gold
-        title={
-          <>
-            <Logo size={22} className="text-brand-ink" />
-            Knot
-          </>
-        }
+        title={<Wordmark size={21} />}
         actions={
           <>
             {mic.supported && (
@@ -281,8 +310,15 @@ export default function ChatPage() {
                 voice
               </Button>
             )}
-            <Button onClick={newSession} title="Memory persists across sessions">
-              new session
+            <Button
+              onClick={newSession}
+              title="Start a new conversation — memory persists across all of them"
+              aria-label="New conversation"
+            >
+              <span className="hidden sm:inline">new conversation</span>
+              <span className="sm:hidden">
+                <Icon as={SquarePen} size={15} />
+              </span>
             </Button>
             <Button onClick={onSignOut} aria-label="Sign out">
               <Icon as={LogOut} size={15} />
@@ -292,13 +328,16 @@ export default function ChatPage() {
           </>
         }
       >
-        <nav aria-label="Sections" className="flex flex-wrap gap-1.5 pb-2.5">
+        <nav
+          aria-label="Sections"
+          className="-mx-1 flex gap-0.5 overflow-x-auto pb-2.5 sm:flex-wrap sm:overflow-visible"
+        >
           {DESTINATIONS.map((d) => (
             <Link
               key={d.href}
               href={d.href}
               aria-label={d.label}
-              className={`${buttonClass()} inline-flex items-center gap-1.5`}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] text-ink-secondary transition-colors hover:bg-surface-raised hover:text-ink-primary"
             >
               <Icon as={d.icon} size={13} />
               {d.name}
@@ -322,71 +361,63 @@ export default function ChatPage() {
 
       <main className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 && (
-          <div className="mt-10 space-y-4 text-center">
-            <Logo size={40} className="mx-auto text-brand-ink" />
-            <p className="text-sm text-ink-secondary">
-              Tell me about your money — I&apos;ll keep the books and remember.
-            </p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => send(s)}
-                  className="rounded-full border border-line bg-surface-card px-3 py-1.5 text-xs text-ink-secondary active:bg-surface-raised"
-                >
-                  {s}
-                </button>
+          <div className="mx-auto mt-6 max-w-2xl">
+            <div className="text-center">
+              <Logo size={44} className="mx-auto text-brand-ink" />
+              <h2 className="mt-3 text-[22px] font-semibold tracking-tight">
+                Just say what happened.
+              </h2>
+              <p className="mx-auto mt-1.5 max-w-md text-sm text-ink-secondary">
+                Knot keeps a real double-entry ledger and remembers the people, habits and
+                commitments behind it — so you never explain the same thing twice.
+              </p>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              {EXAMPLE_GROUPS.map((group) => (
+                <div key={group.title}>
+                  <p className="mb-1.5 text-[10px] uppercase tracking-[0.08em] text-ink-muted">
+                    {group.title}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {group.items.map((item) => (
+                      <button
+                        key={item}
+                        onClick={() => send(item)}
+                        className="rounded-lg bg-surface-card px-2.5 py-1.5 text-left text-[13px] text-ink-secondary transition-colors hover:bg-surface-raised hover:text-ink-primary"
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
         )}
-        {messages.map((m, i) =>
-          m.role === "user" ? (
-            <div key={i} className="flex justify-end">
-              <div className="max-w-[85%] rounded-2xl rounded-br-md bg-brand px-3.5 py-2 text-sm text-ink-on-brand">
-                {m.content}
-              </div>
-            </div>
-          ) : (
-            <div key={i} className="flex justify-start">
-              <div className="max-w-[85%]">
-                <div className="whitespace-pre-wrap rounded-2xl rounded-bl-md border border-line bg-surface-card px-3.5 py-2 text-sm">
-                  {m.content ||
-                    (m.streaming && (
-                      <span className="flex items-center gap-2 text-ink-secondary">
-                        <Logo size={16} state="thinking" className="text-brand-ink" />
-                        {m.liveTools?.length
-                          ? (TOOL_BADGES[m.liveTools[m.liveTools.length - 1]] ??
-                            m.liveTools[m.liveTools.length - 1])
-                          : "thinking"}
-                      </span>
-                    ))}
-                  {m.streaming && m.content && (
-                    <span className="animate-pulse text-brand-ink">▍</span>
-                  )}
-                </div>
-                <AssistantMeta message={m} />
-              </div>
-            </div>
-          )
-        )}
         <div ref={bottomRef} />
       </main>
-
-      <footer className="border-t border-line bg-surface-base px-4 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+      {/* The composer is where the product actually happens, so it gets a
+          card's weight and a card's width rather than a full-bleed strip
+          welded to the bottom of the window. */}
+      <footer className="px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-2">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             send(input);
           }}
-          className="flex items-center gap-2"
+          className={`mx-auto flex w-full max-w-2xl items-center gap-2 rounded-2xl border bg-surface-card p-2 transition-colors ${
+            focused ? "border-brand-line" : "border-line"
+          }`}
         >
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             placeholder={mic.listening ? "listening…" : "lent Priya 500 for lunch…"}
             aria-label="Message"
-            className={`${inputClass} flex-1 rounded-full py-2.5`}
+            className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-[15px] outline-none placeholder:text-ink-muted"
           />
           {mic.supported && (
             <Button
@@ -394,9 +425,9 @@ export default function ChatPage() {
               tone={mic.listening ? "negative" : "neutral"}
               onClick={mic.listening ? mic.stop : mic.start}
               aria-label={mic.listening ? "Stop listening" : "Speak"}
-              className={`rounded-full px-3.5 py-2.5 ${mic.listening ? "animate-pulse" : ""}`}
+              className={`rounded-xl px-3.5 py-2.5 ${mic.listening ? "animate-pulse" : ""}`}
             >
-              <Icon as={mic.listening ? Square : Mic} size={16} />
+              <Icon as={mic.listening ? Square : Mic} size={17} />
             </Button>
           )}
           <Button
@@ -404,9 +435,10 @@ export default function ChatPage() {
             variant="primary"
             size="md"
             disabled={busy || !input.trim()}
-            className="rounded-full"
+            aria-label="Send"
+            className="rounded-xl px-4"
           >
-            Send
+            <Icon as={ArrowUp} size={17} />
           </Button>
         </form>
       </footer>
