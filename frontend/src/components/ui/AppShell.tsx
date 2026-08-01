@@ -28,8 +28,11 @@ export default function AppShell({
   return (
     <div className="flex h-dvh flex-col">
       <AppNav actions={actions} measure={measure} />
-      <main className="flex-1 overflow-y-auto">
-        <div className={`mx-auto w-full ${measure} px-6 sm:px-8 ${contentClassName}`}>
+      {/* Horizontal padding sits OUTSIDE the measure box, exactly as it does
+          in AppNav and the chat footer — all three centre the same box in the
+          same padded area, which is what makes their left edges one line. */}
+      <main className="flex-1 overflow-y-auto px-6 sm:px-8">
+        <div className={`mx-auto w-full ${measure} ${contentClassName}`}>
           {children}
         </div>
       </main>
