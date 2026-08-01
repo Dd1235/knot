@@ -23,7 +23,10 @@ from app.ledger.service import LedgerError, LegSpec, ensure_user
 IST = ZoneInfo("Asia/Kolkata")
 TWO_PLACES = Decimal("0.01")
 
-CADENCES = {"monthly", "yearly"}
+CADENCES = {"monthly", "quarterly", "yearly"}
+# Quarterly reuses the monthly period key (YYYY-MM) and simply skips months
+# off the cycle, so every catch-up, clamp and back-fill path already works.
+QUARTER_MONTHS = 3
 DIRECTIONS = {"spent", "received"}
 
 
@@ -95,7 +98,11 @@ async def list_commitments(user_handle: str) -> dict:
         rows = await cur.fetchall()
     monthly_total = sum(
         (
-            Decimal(r["amount"]) / 12 if r["cadence"] == "yearly" else Decimal(r["amount"])
+            Decimal(r["amount"]) / 12
+            if r["cadence"] == "yearly"
+            else Decimal(r["amount"]) / QUARTER_MONTHS
+            if r["cadence"] == "quarterly"
+            else Decimal(r["amount"])
             for r in rows
             if r["active"] and r["direction"] == "spent"
         ),
@@ -124,6 +131,40 @@ async def deactivate(user_handle: str, name: str) -> dict | None:
     return await run_serializable(_fn)
 
 
+async def rename(user_handle: str, old_name: str, new_name: str) -> dict | None:
+    """Rename a commitment in place.
+
+    The name is the identity key, so restating a commitment under a new name
+    created a second row and left the original posting alongside it — the user
+    ends up paying Netflix twice on paper.
+    """
+    old_name, new_name = old_name.strip(), new_name.strip()
+    if not new_name:
+        raise RecurringError("the new name cannot be empty")
+
+    async def _fn(conn: AsyncConnection) -> dict | None:
+        user_id = await ensure_user(conn, user_handle)
+        clash = await conn.execute(
+            "SELECT 1 FROM recurring_commitments "
+            "WHERE user_id = %s AND lower(name) = lower(%s) AND lower(name) != lower(%s)",
+            (user_id, new_name, old_name),
+        )
+        if await clash.fetchone():
+            raise RecurringError(f"you already track something called '{new_name}'")
+        cur = await conn.execute(
+            """
+            UPDATE recurring_commitments SET name = %s
+            WHERE user_id = %s AND lower(name) = lower(%s)
+            RETURNING id::STRING, name, amount::STRING, cadence, due_day
+            """,
+            (new_name, user_id, old_name),
+        )
+        cur.row_factory = dict_row
+        return await cur.fetchone()
+
+    return await run_serializable(_fn)
+
+
 def _periods_due(
     cadence: str,
     due_day: int | None,
@@ -145,7 +186,7 @@ def _periods_due(
         return []
 
     periods: list[str] = []
-    if cadence == "monthly":
+    if cadence in ("monthly", "quarterly"):
         year, month = (int(p) for p in last_posted.split("-"))
         while True:
             month += 1
@@ -154,7 +195,8 @@ def _periods_due(
             key = f"{year:04d}-{month:02d}"
             if key > current:
                 break
-            periods.append(key)
+            if cadence == "monthly" or _on_quarter_cycle(created_at, year, month):
+                periods.append(key)
             if key == current:
                 break
     else:
@@ -165,11 +207,19 @@ def _periods_due(
     return periods[-12:]
 
 
+def _on_quarter_cycle(created_at: datetime, year: int, month: int) -> bool:
+    """Quarterly fires every third month from the one it was created in."""
+    start = created_at.astimezone(IST)
+    return ((year - start.year) * 12 + (month - start.month)) % QUARTER_MONTHS == 0
+
+
 def _current_period(
     cadence: str, due_day: int | None, created_at: datetime, today: date
 ) -> str | None:
     """Period key the commitment is due for as of `today` (IST), else None."""
-    if cadence == "monthly":
+    if cadence == "quarterly" and not _on_quarter_cycle(created_at, today.year, today.month):
+        return None
+    if cadence in ("monthly", "quarterly"):
         # Clamp to the month's length: a "due on the 31st" commitment must still
         # post in 30-day months (and February) rather than silently skipping.
         last_day = monthrange(today.year, today.month)[1]
@@ -186,7 +236,7 @@ def _current_period(
 def _period_start(cadence: str, period: str, due_day: int | None) -> datetime:
     """Date the entry belongs on, so back-filled periods land in their own
     analytics window rather than all piling onto today."""
-    if cadence == "monthly":
+    if cadence in ("monthly", "quarterly"):
         year, month = (int(p) for p in period.split("-"))
         day = min(due_day or 1, monthrange(year, month)[1])
     else:

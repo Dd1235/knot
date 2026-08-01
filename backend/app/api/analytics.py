@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
 from app.auth.deps import current_user
-from app.ledger import analytics, limits
+from app.ledger import analytics, limits, recurring
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -50,6 +50,15 @@ async def rhythm(
 @router.get("/safe-to-spend")
 async def safe_to_spend(x_user: str = Depends(current_user)) -> dict:
     return await analytics.safe_to_spend(x_user)
+
+
+@router.get("/upcoming")
+async def upcoming(
+    horizon_days: int = Query(default=45, ge=1, le=365),
+    x_user: str = Depends(current_user),
+) -> dict:
+    """What is due, in and out, over the horizon."""
+    return await recurring.upcoming(x_user, horizon_days=horizon_days)
 
 
 @router.get("/limits")
