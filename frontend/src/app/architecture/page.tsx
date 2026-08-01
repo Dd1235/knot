@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import AppHeader from "@/components/ui/AppHeader";
+import AppShell, { PageTitle } from "@/components/ui/AppShell";
 import Card, { CardTitle } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import Logo from "@/components/ui/Logo";
@@ -93,15 +93,14 @@ export default function ArchitecturePage() {
   const balanced = stack ? Number(stack.ledger_sum) === 0 : false;
 
   return (
-    <div className="flex h-dvh flex-col">
-      <AppHeader
-        measure="max-w-3xl" title="How it works" back="/app" />
+    <AppShell>
+      <PageTitle>How it works</PageTitle>
 
-      <main className="mx-auto w-full max-w-3xl flex-1 space-y-4 overflow-y-auto px-4 py-5 pb-[max(env(safe-area-inset-bottom),2rem)]">
+      <div className="mt-5 max-w-3xl space-y-4">
         <section>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h2 className="text-xl font-semibold tracking-tight">
             One database holds the money and the memory.
-          </h1>
+          </h2>
           <p className="mt-2 text-sm text-ink-secondary">
             Most agents bolt a vector store onto a transactional database and hope the two
             agree. Knot keeps a serializable double-entry ledger and four memory stores in a
@@ -278,7 +277,7 @@ export default function ArchitecturePage() {
         <div className="flex justify-center pt-2">
           <Logo size={20} className="text-brand-ink opacity-50" />
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

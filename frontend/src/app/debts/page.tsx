@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import AppHeader from "@/components/ui/AppHeader";
+import AppShell, { PageTitle } from "@/components/ui/AppShell";
 import Button from "@/components/ui/Button";
 import Card, { CardTitle } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
@@ -147,11 +147,10 @@ export default function DebtsPage() {
   const owing = (people ?? []).filter((p) => Number(p.balance) > 0);
 
   return (
-    <div className="flex h-dvh flex-col">
-      <AppHeader
-        measure="max-w-2xl" title="Debt" back="/app" />
+    <AppShell>
+      <PageTitle>Debt</PageTitle>
 
-      <main className="mx-auto w-full max-w-2xl flex-1 space-y-3 overflow-y-auto px-4 py-4 pb-[max(env(safe-area-inset-bottom),2rem)]">
+      <div className="mt-5 max-w-2xl space-y-3">
         {data === null ? (
           <>
             <SkeletonCard className="h-[74px]" />
@@ -241,7 +240,7 @@ export default function DebtsPage() {
             which is why your spending total is lower than your bank statement.
           </p>
         )}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

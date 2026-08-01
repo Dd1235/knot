@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import AppHeader from "@/components/ui/AppHeader";
+import AppShell, { PageTitle } from "@/components/ui/AppShell";
 import Button from "@/components/ui/Button";
 import Money from "@/components/ui/Money";
 import Stat from "@/components/ui/Stat";
@@ -41,11 +41,10 @@ export default function DemoPage() {
   const balanced = result && Number(result.ledger_sum) === 0 && result.committed === 1;
 
   return (
-    <div className="flex h-dvh flex-col">
-      <AppHeader
-        measure="max-w-lg" title="Race demo" back="/app" />
+    <AppShell>
+      <PageTitle>Race demo</PageTitle>
 
-      <main className="mx-auto w-full max-w-lg flex-1 space-y-5 overflow-y-auto px-4 py-6 pb-[max(env(safe-area-inset-bottom),1.5rem)]">
+      <div className="mt-5 max-w-lg space-y-5">
         <div className="space-y-2 text-sm text-ink-secondary">
           <p>
             <span className="font-medium text-ink-primary">The scenario:</span> Priya
@@ -110,7 +109,7 @@ export default function DemoPage() {
             </p>
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

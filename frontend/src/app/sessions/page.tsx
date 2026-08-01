@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import AppHeader from "@/components/ui/AppHeader";
+import AppShell, { PageTitle } from "@/components/ui/AppShell";
 import Card, { CardTitle } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import Pill from "@/components/ui/Pill";
@@ -99,11 +99,10 @@ export default function SessionsPage() {
   }, []);
 
   return (
-    <div className="flex h-dvh flex-col">
-      <AppHeader
-        measure="max-w-2xl" title="History" back="/app" />
+    <AppShell>
+      <PageTitle>History</PageTitle>
 
-      <main className="mx-auto w-full max-w-2xl flex-1 space-y-3 overflow-y-auto px-4 py-4 pb-[max(env(safe-area-inset-bottom),2rem)]">
+      <div className="mt-5 max-w-2xl space-y-3">
         <p className="text-sm text-ink-secondary">
           Every conversation, spoken or typed, with the tools it ran and the memories it
           drew on. Voice and text share one session — continuing out loud picks up where
@@ -162,7 +161,7 @@ export default function SessionsPage() {
             );
           })
         )}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }
