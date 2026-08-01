@@ -1,5 +1,16 @@
 # Demo video — storyboard, script, production
 
+> **There are two videos.** This file's main storyboard is the ≤3-min
+> **hackathon submission demo** (made later, voice mode demonstrated
+> properly). The **landing-page advert** — ~40s, beat-cut, captions-first so
+> it works muted, both themes with the theme flip as a transition — is
+> produced by `scratch/video/` (gitignored): `shots/shots.mjs` captures,
+> `assemble.py` cuts. Draft: `scratch/video/out/knot-advert-draft.mp4` with a
+> scratch VO. Outstanding for the final advert: real VO (`assets/vo.m4a`),
+> a ~110 BPM music track (`assets/music.mp3`), a re-shoot of the limits card
+> once the month is ≥4 days old (pace verdicts are gated before that), and a
+> re-shoot of shot 03 holding long enough to expand the "memories used" trace.
+
 Target: **2:45** (hard cap 3:00 per the rules). Judged on five equal criteria:
 agentic memory design, technical implementation, real-world impact, production
 readiness, creativity. The rules explicitly require the video to show **"the
