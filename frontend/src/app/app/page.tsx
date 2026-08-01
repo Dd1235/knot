@@ -11,7 +11,7 @@ import {
   logout,
   sendChatStream,
 } from "@/lib/api";
-import { speak, stopSpeaking, unlockSpeech, useSpeechInput } from "@/lib/speech";
+import { stopSpeaking, unlockSpeech, useSpeechInput } from "@/lib/speech";
 import VoiceMode from "@/components/VoiceMode";
 import AppHeader from "@/components/ui/AppHeader";
 import Button from "@/components/ui/Button";
@@ -196,13 +196,17 @@ export default function ChatPage() {
 
   const patchLast = (update: (m: Message) => Message) =>
     setMessages((all) => {
+      // A stream can still be running when "new conversation" empties the
+      // list. Without this guard the updater either throws reading `m.content`
+      // off undefined, or writes to index -1 and drops the reply silently.
+      if (all.length === 0) return all;
       const copy = [...all];
       copy[copy.length - 1] = update(copy[copy.length - 1]);
       return copy;
     });
 
   const send = useCallback(
-    async (text: string, options?: { voice?: boolean }): Promise<string | null> => {
+    async (text: string): Promise<string | null> => {
       const message = text.trim();
       if (!message || busy) return null;
       let replyText: string | null = null;
@@ -234,7 +238,6 @@ export default function ChatPage() {
               events: res.events,
               trace: res.context_trace,
             }));
-            if (options?.voice) speak(res.reply);
             refreshBalances();
           },
         });
@@ -253,17 +256,25 @@ export default function ChatPage() {
 
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [focused, setFocused] = useState(false);
+  /* The footer mic is DICTATION, not a conversation.
+   *
+   * It used to send the moment recognition ended and speak the reply, which
+   * made it a second voice mode — and since send() clears the input, the
+   * transcript vanished before anyone could read it.
+   *
+   * It now fills the composer and stops. That matters here specifically
+   * because this is money: "fifteen" and "fifty" are one mishearing apart,
+   * and the difference should be correctable before it becomes a ledger
+   * entry. Spoken replies belong to the overlay, which is hands-free by
+   * design and where you cannot read the screen anyway. */
   const mic = useSpeechInput({
     onInterim: setInput,
-    // `voice: true` makes the reply spoken aloud. Suppressed while the voice
-    // overlay is open, or this page speaks the reply at the same time the
-    // overlay does — a second voice with a completely separate cause from the
-    // duplicated WebRTC sessions.
-    onFinal: (text) => send(text, { voice: !voiceOpen }),
+    onFinal: (text) => setInput(text),
   });
 
-  // Opening the overlay must also silence this page's microphone; it was
-  // still listening underneath and answering out loud.
+  // Opening the overlay must still silence this page's microphone — two
+  // recognisers competing for one input device is its own problem, separate
+  // from the speaking one.
   useEffect(() => {
     if (voiceOpen) {
       mic.stop();
