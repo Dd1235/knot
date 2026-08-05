@@ -12,7 +12,8 @@ export default function Logo({
 }: {
   size?: number;
   className?: string;
-  state?: "idle" | "thinking";
+  /** "thinking" loops the draw; "cinch" ties once, tight — a write committed. */
+  state?: "idle" | "thinking" | "cinch";
   title?: string;
 }) {
   return (
@@ -27,7 +28,9 @@ export default function Logo({
       strokeLinejoin="round"
       role={title ? "img" : "presentation"}
       aria-hidden={title ? undefined : true}
-      className={`${state === "thinking" ? "knot-tying" : ""} ${className}`}
+      className={`${
+        state === "thinking" ? "knot-tying" : state === "cinch" ? "knot-cinch" : ""
+      } ${className}`}
     >
       {title && <title>{title}</title>}
       {/* Loop with two tails crossing below it: the over-strand runs
@@ -40,13 +43,19 @@ export default function Logo({
 }
 
 /** Full lockup: mark + wordmark, used in the app header and on the login page. */
-export function Wordmark({ size = 20 }: { size?: number }) {
+export function Wordmark({
+  size = 20,
+  state = "idle",
+}: {
+  size?: number;
+  state?: "idle" | "thinking" | "cinch";
+}) {
   return (
     // The gap tracks the MARK's size, not the inherited font size — an em gap
     // here shrank whenever the lockup sat in small-type context, welding the
     // icon to the K at exactly the sizes where they need air.
     <span className="inline-flex items-baseline" style={{ columnGap: Math.round(size * 0.45) }}>
-      <Logo size={size} className="translate-y-[0.09em] text-brand-ink" />
+      <Logo size={size} state={state} className="translate-y-[0.09em] text-brand-ink" />
       {/* -0.02em: the mark is a round, open form, and default tracking leaves
           the K drifting away from it. Baseline alignment rather than centre,
           so the word sits on the type baseline like type. */}
