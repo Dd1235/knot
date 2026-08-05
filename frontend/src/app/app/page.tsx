@@ -9,6 +9,7 @@ import {
   getSessionTrace,
   sendChatStream,
 } from "@/lib/api";
+import { cinchKnot, WRITE_TOOLS } from "@/lib/knot";
 import { stopSpeaking, unlockSpeech, useSpeechInput } from "@/lib/speech";
 import VoiceMode from "@/components/VoiceMode";
 import AppShell, { PageTitle } from "@/components/ui/AppShell";
@@ -249,6 +250,8 @@ export default function ChatPage() {
               events: res.events,
               trace: res.context_trace,
             }));
+            // Only a committed write ties the knot — never a mere answer.
+            if ((res.events ?? []).some((e) => WRITE_TOOLS.has(e.tool))) cinchKnot();
             refreshBalances();
           },
         });
@@ -410,7 +413,7 @@ export default function ChatPage() {
 
       {heroMode ? (
         <div>
-          <Logo size={40} className="text-brand-ink" />
+          <Logo size={40} className="knot-draw text-brand-ink" />
           <div className="mt-4">
             <PageTitle>Just say what happened.</PageTitle>
           </div>

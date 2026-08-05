@@ -7,6 +7,8 @@
  * we relay them to our API, which runs them on the same registry the text
  * agent uses — voice gets no business logic of its own. */
 
+import { cinchKnot, WRITE_TOOLS } from "./knot";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 const SDP_URL = "https://api.openai.com/v1/realtime/calls";
@@ -201,6 +203,9 @@ export class RealtimeSession {
         });
         const body = await res.json();
         output = JSON.stringify(body.result ?? body);
+        // Voice bookings tie the knot too — visible the moment the overlay
+        // closes, and the trigger stays "a write committed", same as text.
+        if (res.ok && WRITE_TOOLS.has(call.name)) cinchKnot();
       } catch {
         /* keep the error payload so the model can explain itself */
       }

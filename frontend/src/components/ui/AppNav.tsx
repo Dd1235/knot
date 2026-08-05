@@ -7,6 +7,7 @@ import { Wordmark } from "./Logo";
 import CurrencyToggle from "./CurrencyToggle";
 import ThemeToggle from "./ThemeToggle";
 import SignOutButton from "./SignOutButton";
+import { useKnotCinch } from "@/lib/knot";
 
 export const DESTINATIONS = [
   { href: "/insights", name: "insights", label: "Spending insights" },
@@ -35,6 +36,9 @@ export default function AppNav({
   measure?: string;
 }) {
   const pathname = usePathname();
+  // The signature moment: a committed write ties the knot in the header.
+  // The counter doubles as a key so back-to-back writes restart the tie.
+  const pulse = useKnotCinch();
 
   const links = DESTINATIONS.map((d) => {
     const active = pathname === d.href;
@@ -60,7 +64,7 @@ export default function AppNav({
       <div className={`mx-auto w-full ${measure}`}>
         <div className="flex h-16 items-center gap-6">
           <Link href="/app" aria-label="Knot — chat" className="shrink-0">
-            <Wordmark size={24} />
+            <Wordmark key={pulse} size={24} state={pulse ? "cinch" : "idle"} />
           </Link>
           <nav aria-label="Sections" className="hidden min-w-0 flex-1 items-center gap-1 lg:flex">
             {links}
