@@ -30,7 +30,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center px-6 py-10">
+    <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-10">
       <div className="w-full max-w-sm space-y-7">
         <div className="flex flex-col items-center gap-3 text-center">
           <Logo size={44} className="text-brand-ink" title="Knot" />
@@ -99,6 +99,6 @@ export default function LoginPage() {
           </button>
         </p>
       </div>
-    </div>
+    </main>
   );
 }

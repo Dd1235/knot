@@ -185,6 +185,17 @@ export default function VoiceMode({
     setEngine(next);
   };
 
+  /* Focus has to ENTER the dialog, or the Tab trap below never engages: it
+   * compares document.activeElement against the first/last focusable node
+   * inside dialogRef, and on open activeElement is still the "voice" button
+   * out in the header — behind aria-modal. The first Tab then walked into the
+   * chrome the overlay is covering. Restore focus on the way out, too. */
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    return () => opener?.focus?.();
+  }, []);
+
   // Escape closes; Tab is trapped inside the overlay.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -195,7 +206,7 @@ export default function VoiceMode({
       }
       if (e.key !== "Tab" || !dialogRef.current) return;
       const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-        'button, [href], input, [tabindex]:not([tabindex="-1"])',
+        'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
       );
       if (focusable.length === 0) return;
       const first = focusable[0];
@@ -234,6 +245,7 @@ export default function VoiceMode({
       role="dialog"
       aria-modal="true"
       aria-label="Voice conversation"
+      tabIndex={-1}
       className="fixed inset-0 z-50 flex flex-col bg-surface-overlay px-6 pt-[env(safe-area-inset-top)] backdrop-blur"
     >
       <div className="flex h-14 items-center justify-between gap-2">

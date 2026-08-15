@@ -116,6 +116,7 @@ function NewLimit({
       </div>
       <div className="flex gap-1.5">
         <input
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- the editor is opened by a deliberate click; focus belongs in it
           autoFocus
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -707,6 +708,7 @@ export default function InsightsPage() {
                     <span className="text-ink-muted">of</span>
                     {editing === `${l.scope}:${l.target}` ? (
                       <input
+                        // eslint-disable-next-line jsx-a11y/no-autofocus -- the editor is opened by a deliberate click; focus belongs in it
                         autoFocus
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
@@ -904,7 +906,7 @@ export default function InsightsPage() {
         </span>
       </button>
       {exportError && (
-        <p className="text-center text-xs text-negative">Export failed — try again.</p>
+        <p role="alert" className="text-center text-xs text-negative">Export failed — try again.</p>
       )}
     </>
   );
