@@ -337,9 +337,19 @@ export default function ChatPage() {
    * hero while the conversation is empty, in AppShell's footer slot once it is
    * not. The first send flips `heroMode`, React destroys the focused input and
    * builds a new one, and focus falls to <body>: the app's primary action left
-   * a keyboard user with nowhere to type. Re-focus after the swap. */
+   * a keyboard user with nowhere to type. Re-focus after the swap.
+   *
+   * Only on the SWAP, never on first paint. Stealing focus on load would put
+   * the caret in the composer before the user has asked for it, and — worse —
+   * would move the first Tab stop past the skip link, which exists precisely
+   * so a keyboard user can get to the content without crossing the whole nav. */
+  const wasHero = useRef<boolean | null>(null);
   useEffect(() => {
-    if (!restoring) inputRef.current?.focus();
+    if (restoring) return;
+    if (wasHero.current !== null && wasHero.current !== heroMode) {
+      inputRef.current?.focus();
+    }
+    wasHero.current = heroMode;
   }, [heroMode, restoring]);
   const composer = (
     <form
