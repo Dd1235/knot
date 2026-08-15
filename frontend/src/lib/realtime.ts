@@ -8,6 +8,7 @@
  * agent uses — voice gets no business logic of its own. */
 
 import { cinchKnot, WRITE_TOOLS } from "./knot";
+import { turnContext } from "./api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -92,7 +93,7 @@ export class RealtimeSession {
       headers: { "Content-Type": "application/json", ...authHeaders },
       // Continue the conversation already in progress rather than starting a
       // parallel one the history page would show as a separate session.
-      body: JSON.stringify({ session_id: resumeSessionId ?? null }),
+      body: JSON.stringify({ session_id: resumeSessionId ?? null, ...turnContext() }),
     });
     if (this.aborted()) return;
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? "session failed");
@@ -199,6 +200,9 @@ export class RealtimeSession {
             call_id: call.call_id,
             name: call.name,
             arguments: call.arguments,
+            // Per call, not per session: the session is minted once but the
+            // user can change page or currency mid-conversation.
+            ...turnContext(),
           }),
         });
         const body = await res.json();

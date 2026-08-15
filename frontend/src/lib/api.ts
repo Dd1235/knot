@@ -1,3 +1,4 @@
+import { readCurrency } from "./currency";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export function getUserHandle(): string {
@@ -66,10 +67,23 @@ export interface PersonBalance {
   balance: string;
 }
 
+/** What the agent should say, and how to read what the user says.
+ *
+ * The ledger is rupees and stays rupees — this only travels with a request so
+ * the reply matches the screen. Read at call time rather than captured, because
+ * the toggle can move between one turn and the next. */
+export function turnContext(): { route: string; currency: { code: string; per_rupee: string } } {
+  const c = readCurrency();
+  return {
+    route: typeof window === "undefined" ? "" : window.location.pathname,
+    currency: { code: c.code, per_rupee: String(c.perRupee) },
+  };
+}
+
 export const sendChat = (message: string, sessionId: string | null) =>
   api<ChatResponse>("/chat", {
     method: "POST",
-    body: JSON.stringify({ message, session_id: sessionId }),
+    body: JSON.stringify({ message, session_id: sessionId, ...turnContext() }),
   });
 
 export interface StreamCallbacks {
@@ -91,7 +105,7 @@ export async function sendChatStream(
       "X-User": getUserHandle(),
       ...authHeaders(),
     },
-    body: JSON.stringify({ message, session_id: sessionId }),
+    body: JSON.stringify({ message, session_id: sessionId, ...turnContext() }),
   });
   if (res.status === 401) onUnauthorized();
   if (!res.ok || !res.body) throw new Error(`${res.status}: ${await res.text()}`);

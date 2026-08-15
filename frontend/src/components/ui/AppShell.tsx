@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import AppNav from "./AppNav";
 import VoiceOverlay from "./VoiceOverlay";
+import VoiceLink from "./VoiceLink";
 
 /** The one page frame.
  *
@@ -44,15 +45,32 @@ export default function AppShell({
       <ScreenReaderOnly role="status" aria-live="polite">
         {routeAnnouncement}
       </ScreenReaderOnly>
-      {/* AppNav puts ~12 tab stops before the content on every page, and it is
-          the same 12 on each one. Hidden until focused, so it costs a sighted
-          user nothing and a keyboard user eleven keystrokes per navigation. */}
-      <a
-        href="#content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface-card focus:px-4 focus:py-2 focus:text-sm focus:text-ink-primary focus:shadow-lg"
+      {/* The first two things a keyboard reaches, on every page.
+       *
+       * The voice button in the header is the eleventh tab stop on desktop —
+       * behind the wordmark and eight nav links — and the skip link jumps over
+       * the header entirely, so a screen-reader user taking it never met voice
+       * at all. "Click the voice button" is not an answer for someone who
+       * cannot see where the button is.
+       *
+       * A single-letter shortcut would have been worse than useless here:
+       * screen readers run pages in browse mode and capture bare character
+       * keys for their own quick-navigation, so the keystroke never reaches
+       * the page. Tab is the one thing that behaves identically in every
+       * screen reader, every mode and every browser — and WCAG 2.1.4 has
+       * nothing to say about it. */}
+      <nav
+        aria-label="Quick actions"
+        className="sr-only focus-within:not-sr-only focus-within:absolute focus-within:left-4 focus-within:top-4 focus-within:z-50 focus-within:flex focus-within:gap-2"
       >
-        Skip to content
-      </a>
+        <a
+          href="#content"
+          className="rounded-lg bg-surface-card px-4 py-2 text-sm text-ink-primary shadow-lg"
+        >
+          Skip to content
+        </a>
+        <VoiceLink />
+      </nav>
       <AppNav actions={actions} measure={measure} />
       {/* Horizontal padding sits OUTSIDE the measure box, exactly as it does
           in AppNav and the chat footer — all three centre the same box in the
