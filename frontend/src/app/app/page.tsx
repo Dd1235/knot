@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   ContextTrace,
   PersonBalance,
@@ -12,7 +12,7 @@ import {
 import { cinchKnot, WRITE_TOOLS } from "@/lib/knot";
 import { stopSpeaking, unlockSpeech, useSpeechInput } from "@/lib/speech";
 import VoiceMode from "@/components/VoiceMode";
-import AppShell, { PageTitle } from "@/components/ui/AppShell";
+import AppShell, { PageTitle, ScreenReaderOnly } from "@/components/ui/AppShell";
 import Button from "@/components/ui/Button";
 import Logo from "@/components/ui/Logo";
 import Money from "@/components/ui/Money";
@@ -119,6 +119,7 @@ function TraceDetail({ trace }: { trace: ContextTrace }) {
 
 function AssistantMeta({ message }: { message: Message }) {
   const [open, setOpen] = useState(false);
+  const panelId = useId();
   const memories = traceCount(message.trace);
   const badges = (message.events ?? []).map((e) => TOOL_BADGES[e.tool] ?? e.tool);
   if (badges.length === 0 && memories === 0) return null;
@@ -132,6 +133,7 @@ function AssistantMeta({ message }: { message: Message }) {
           <button
             onClick={() => setOpen(!open)}
             aria-expanded={open}
+            aria-controls={panelId}
             className="rounded-full border border-brand-line bg-brand-soft px-2 py-0.5 text-[11px] text-brand-ink"
           >
             {memories} {memories === 1 ? "memory" : "memories"} used{" "}
@@ -139,7 +141,7 @@ function AssistantMeta({ message }: { message: Message }) {
           </button>
         )}
       </div>
-      {open && message.trace && <TraceDetail trace={message.trace} />}
+      <div id={panelId}>{open && message.trace && <TraceDetail trace={message.trace} />}</div>
     </div>
   );
 }
@@ -152,6 +154,11 @@ export default function ChatPage() {
   const [people, setPeople] = useState<PersonBalance[]>([]);
   const [restoring, setRestoring] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  /* What a screen reader is told. Deliberately NOT the token stream: an
+   * aria-live region fed by deltas announces every fragment and is unusable.
+   * This gets one sentence when the turn completes. */
+  const [announcement, setAnnouncement] = useState("");
 
   /* Rehydrate the conversation you are actually in.
    *
@@ -198,7 +205,13 @@ export default function ChatPage() {
     if (messages.length === 0) return;
     // Jump, don't animate, when a restored conversation first paints — a
     // smooth scroll through fifty turns is a long, pointless journey.
-    bottomRef.current?.scrollIntoView({ behavior: restoring ? "instant" : "smooth" });
+    // A JS-specified `behavior` ignores the CSS reduced-motion switch, and this
+    // fires on every streamed token, so it has to check the query itself.
+    const still =
+      restoring ||
+      (typeof window !== "undefined" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    bottomRef.current?.scrollIntoView({ behavior: still ? "instant" : "smooth" });
   }, [messages, busy, restoring]);
 
   const refreshBalances = () =>
@@ -252,6 +265,11 @@ export default function ChatPage() {
             }));
             // Only a committed write ties the knot — never a mere answer.
             if ((res.events ?? []).some((e) => WRITE_TOOLS.has(e.tool))) cinchKnot();
+            // One announcement per turn, reply first, then what it did.
+            const did = (res.events ?? [])
+              .map((e) => TOOL_BADGES[e.tool] ?? e.tool)
+              .join(", ");
+            setAnnouncement(did ? `${res.reply} (${did})` : res.reply);
             refreshBalances();
           },
         });
@@ -302,6 +320,8 @@ export default function ChatPage() {
     setSessionId(null);
     setMessages([]);
     setInput("");
+    setAnnouncement("New conversation started.");
+    inputRef.current?.focus();
     // Nothing is lost — the old conversation keeps its own row in history, and
     // what the agent learned from it stays in memory either way.
   };
@@ -312,6 +332,15 @@ export default function ChatPage() {
    * than an inner component: an inner component gets a new identity every
    * render, which remounts the input and loses focus on every keystroke. */
   const heroMode = !restoring && messages.length === 0;
+
+  /* The composer is rendered in two structurally different places — in the
+   * hero while the conversation is empty, in AppShell's footer slot once it is
+   * not. The first send flips `heroMode`, React destroys the focused input and
+   * builds a new one, and focus falls to <body>: the app's primary action left
+   * a keyboard user with nowhere to type. Re-focus after the swap. */
+  useEffect(() => {
+    if (!restoring) inputRef.current?.focus();
+  }, [heroMode, restoring]);
   const composer = (
     <form
       onSubmit={(e) => {
@@ -323,6 +352,7 @@ export default function ChatPage() {
       }`}
     >
       <input
+        ref={inputRef}
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onFocus={() => setFocused(true)}
@@ -397,6 +427,14 @@ export default function ChatPage() {
       {voiceOpen && (
         <VoiceMode onUtterance={(text) => send(text)} onClose={() => setVoiceOpen(false)} />
       )}
+      {/* The hero's PageTitle disappears once a conversation starts, leaving the
+          app's main screen with no h1 at all. */}
+      {!heroMode && <ScreenReaderOnly as="h1">Chat</ScreenReaderOnly>}
+      {/* One polite announcement per completed turn. The streaming bubble below
+          is aria-hidden precisely so this is the only thing that speaks. */}
+      <ScreenReaderOnly role="status" aria-live="polite">
+        {announcement}
+      </ScreenReaderOnly>
       {people.length > 0 && (
         <div className="mb-5 flex gap-2 overflow-x-auto">
           {people.map((p) => (
@@ -405,7 +443,8 @@ export default function ChatPage() {
               tone={Number(p.balance) > 0 ? "positive" : "negative"}
             >
               {p.display_name} {Number(p.balance) > 0 ? "owes you" : "is owed"}{" "}
-              <Money value={p.balance} tone="neutral" />
+              {/* The words carry the direction, so the figure is a magnitude. */}
+              <Money value={Math.abs(Number(p.balance))} tone="neutral" />
             </Pill>
           ))}
         </div>
@@ -455,7 +494,13 @@ export default function ChatPage() {
             ) : (
               <div key={i} className="flex justify-start">
                 <div className="max-w-[85%]">
-                  <div className="whitespace-pre-wrap rounded-2xl rounded-bl-md border border-line bg-surface-card px-3.5 py-2 text-sm">
+                  <div
+                    // While a turn is in flight this text is a token stream;
+                    // the polite live region above announces the finished reply
+                    // instead, so this must not also be read out.
+                    aria-hidden={m.streaming ? true : undefined}
+                    className="whitespace-pre-wrap rounded-2xl rounded-bl-md border border-line bg-surface-card px-3.5 py-2 text-sm"
+                  >
                     {m.content ||
                       (m.streaming && (
                         <span className="flex items-center gap-2 text-ink-secondary">

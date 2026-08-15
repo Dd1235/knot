@@ -223,7 +223,7 @@ export default function DebtsPage() {
                       settle
                     </Button>
                     <span className="whitespace-nowrap rounded-full border border-positive-line bg-positive-soft px-2.5 py-1 text-xs tabular-nums text-positive">
-                      <Money value={p.balance} tone="neutral" />
+                      <Money value={Math.abs(Number(p.balance))} tone="neutral" />
                     </span>
                   </span>
                 </div>

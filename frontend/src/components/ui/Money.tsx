@@ -38,7 +38,19 @@ export default function Money({
           : "neutral"
       : tone;
 
-  const parts = formatterFor(currency).formatToParts(signed ? amount : Math.abs(amount));
+  // A negative amount ALWAYS renders its sign. It used to render the absolute
+  // value unless `signed` was set, which left the minus carried by colour
+  // alone — an overdrawn safe-to-spend of −₹2,000 read as "₹2,000" in red, and
+  // as plain "₹2,000" to a screen reader or anyone who cannot separate
+  // --negative from --ink-primary. `signed` now only controls whether a
+  // POSITIVE amount gets a leading "+".
+  //
+  // Callers that want a bare magnitude because adjacent text already carries
+  // the direction ("Priya is owed …") pass Math.abs() themselves, which several
+  // already did.
+  const parts = formatterFor(currency).formatToParts(
+    signed || amount < 0 ? amount : Math.abs(amount),
+  );
 
   return (
     <span
