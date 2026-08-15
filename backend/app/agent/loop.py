@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 import app.agent.tools  # noqa: F401  (registers tools)
 from app.agent.context import assemble
 from app.agent.registry import ToolContext, dispatch, specs
+from app.agent.routes import describe
 from app.llm.provider import get_provider
 from app.memory import procedural
 from app.tasks import fire_and_forget
@@ -60,7 +61,7 @@ async def run_turn_stream(ctx: ToolContext, history: list[dict], user_message: s
     start = time.perf_counter()
     assembled = await assemble(ctx.user_handle, user_message)
     assembly_ms = int((time.perf_counter() - start) * 1000)
-    system = _system_prompt()
+    system = _system_prompt() + describe(ctx.route)
     if assembled.rule_ids:
         fire_and_forget(procedural.record_usage(assembled.rule_ids), "rule-usage")
 

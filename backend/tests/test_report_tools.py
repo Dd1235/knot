@@ -15,6 +15,7 @@ import pytest
 from app.agent.registry import ToolContext
 from app.agent.tools import report_tools
 from app.ledger import analytics, service
+from app.ledger.display import Currency
 from app.ledger.service import LegSpec
 
 
@@ -37,15 +38,19 @@ async def spend(user: str, amount: str, category: str, description: str):
 
 
 async def test_overview_agrees_with_the_dashboard(user):
-    """The spoken number and the rendered number come from one query."""
+    """The spoken number and the rendered number come from one query.
+
+    The tool labels its figures — always, even in rupees. A bare number is what
+    let the agent call a rupee figure "dollars".
+    """
     await spend(user, "500", "food", "lunch")
     await spend(user, "1200", "groceries", "weekly shop")
 
     result = await report_tools.financial_overview(ctx_for(user), {})
     summary = await analytics.summary(user, 30)
 
-    assert result["total_spend"] == summary["total_spend"] == "1700.00"
-    assert result["net_worth"] == summary["net_worth"]
+    assert summary["total_spend"] == "1700.00"
+    assert result["total_spend"] == "₹1700.00"
     assert result["window_days"] == 30
 
 
@@ -84,10 +89,48 @@ async def test_breakdown_caps_the_tail(user):
 
 
 async def test_safe_to_spend_matches_analytics(user):
+    """Same figures as the dashboard, labelled with their unit."""
     await spend(user, "300", "food", "dinner")
-    assert (await report_tools.safe_to_spend(ctx_for(user), {})) == (
-        await analytics.safe_to_spend(user)
+    tool = await report_tools.safe_to_spend(ctx_for(user), {})
+    raw = await analytics.safe_to_spend(user)
+    for key in ("liquid", "claimed", "available"):
+        assert tool[key] == f"₹{raw[key]}"
+    assert tool["days_until_income"] == raw["days_until_income"]
+
+
+async def test_a_dollar_reader_hears_dollars(user):
+    """A judge who toggles the display to USD must not be told rupee figures.
+
+    Conversion happens here, in Python, once — never in the model, which would
+    be arithmetic and would eventually be wrong out loud.
+    """
+    await spend(user, "8700", "shopping", "a big day")
+    usd = ToolContext(
+        user_handle=user,
+        session_id=str(uuid.uuid4()),
+        currency=Currency("USD", Decimal("0.0115")),
     )
+    result = await report_tools.financial_overview(usd, {})
+    assert result["total_spend"] == "$100.05"          # 8700 * 0.0115
+    # And the ledger itself is untouched: still rupees.
+    assert (await analytics.summary(user, 30))["total_spend"] == "8700.00"
+
+
+async def test_an_amount_stated_in_dollars_is_stored_in_rupees(user):
+    """The ledger never learns another currency exists."""
+    from app.agent.tools import ledger_tools
+
+    usd = ToolContext(
+        user_handle=user,
+        session_id=str(uuid.uuid4()),
+        currency=Currency("USD", Decimal("0.01")),
+    )
+    await ledger_tools.record_transaction(
+        usd, {"description": "headphones", "amount": 50, "direction": "spent",
+              "category": "shopping"},
+    )
+    # $50 at 0.01 per rupee is ₹5,000 on the books.
+    assert (await analytics.summary(user, 30))["total_spend"] == "5000.00"
 
 
 async def test_cash_position_is_readable_without_spending_cash(user):

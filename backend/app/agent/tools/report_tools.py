@@ -17,6 +17,7 @@ see is just a query somebody can ask.
 from app.agent.registry import ToolContext, register
 from app.insights import service as insights_service
 from app.ledger import analytics
+from app.ledger.display import money_fields, to_display
 
 # Windows the model may ask for. Bounded because "last 3650 days" is a slow
 # query dressed up as a question.
@@ -57,17 +58,20 @@ async def financial_overview(ctx: ToolContext, args: dict) -> dict:
     # Deliberately NOT the whole summary: `daily` is a per-day spine of up to
     # 365 rows and `by_category` can be long. A spoken answer needs the
     # headline, and the model cannot read out what it was not given.
+    c = ctx.currency
+    money = ("total_spend", "total_income", "total_invested", "net_cashflow")
     return {
         "window_days": summary["window_days"],
-        "total_spend": summary["total_spend"],
-        "total_income": summary["total_income"],
-        "total_invested": summary["total_invested"],
-        "net_cashflow": summary["net_cashflow"],
-        "net_worth": summary["net_worth"],
-        "by_group": summary["by_group"],
-        "safe_to_spend": safe["available"],
+        **{k: to_display(summary[k], c) for k in money},
+        "net_worth": money_fields(
+            summary["net_worth"], ("assets", "liabilities", "net_worth"), c
+        ),
+        "by_group": [money_fields(g, ("amount",), c) for g in summary["by_group"]],
+        "safe_to_spend": to_display(safe["available"], c),
         "days_until_income": safe["days_until_income"],
-        "per_day_until_income": safe["per_day"],
+        "per_day_until_income": (
+            to_display(safe["per_day"], c) if safe["per_day"] is not None else None
+        ),
     }
 
 
@@ -79,7 +83,8 @@ async def financial_overview(ctx: ToolContext, args: dict) -> dict:
     {"type": "object", "properties": {}},
 )
 async def safe_to_spend(ctx: ToolContext, args: dict) -> dict:
-    return await analytics.safe_to_spend(ctx.user_handle)
+    data = await analytics.safe_to_spend(ctx.user_handle)
+    return money_fields(data, ("liquid", "claimed", "available", "per_day"), ctx.currency)
 
 
 @register(
@@ -91,12 +96,15 @@ async def safe_to_spend(ctx: ToolContext, args: dict) -> dict:
 async def spending_breakdown(ctx: ToolContext, args: dict) -> dict:
     days = _days(args)
     summary = await analytics.summary(ctx.user_handle, days)
+    c = ctx.currency
     return {
         "window_days": summary["window_days"],
-        "total_spend": summary["total_spend"],
-        "by_group": summary["by_group"],
+        "total_spend": to_display(summary["total_spend"], c),
+        "by_group": [money_fields(g, ("amount",), c) for g in summary["by_group"]],
         # Top categories only: the tail is noise in a spoken answer.
-        "by_category": summary["by_category"][:8],
+        "by_category": [
+            money_fields(row, ("amount",), c) for row in summary["by_category"][:8]
+        ],
     }
 
 
@@ -108,7 +116,13 @@ async def spending_breakdown(ctx: ToolContext, args: dict) -> dict:
     {"type": "object", "properties": {"days": _WINDOW}},
 )
 async def spending_rhythm(ctx: ToolContext, args: dict) -> dict:
-    return await analytics.rhythm(ctx.user_handle, _days(args))
+    data = await analytics.rhythm(ctx.user_handle, _days(args))
+    c = ctx.currency
+    return {
+        **data,
+        "top_merchants": [money_fields(m, ("amount",), c) for m in data["top_merchants"]],
+        "by_weekday": [money_fields(d, ("typical",), c) for d in data["by_weekday"]],
+    }
 
 
 @register(
@@ -118,7 +132,8 @@ async def spending_rhythm(ctx: ToolContext, args: dict) -> dict:
     {"type": "object", "properties": {}},
 )
 async def cash_position(ctx: ToolContext, args: dict) -> dict:
-    return await analytics.cash_float(ctx.user_handle)
+    data = await analytics.cash_float(ctx.user_handle)
+    return money_fields(data, ("withdrawn", "accounted", "unaccounted"), ctx.currency)
 
 
 @register(
@@ -136,4 +151,8 @@ async def what_changed(ctx: ToolContext, args: dict) -> dict:
     return {
         "observations": [i["text"] for i in result["insights"]],
         "cached": result["cached"],
+        # These are sentences a model already wrote, with rupee figures baked
+        # into the prose — there is no field to convert. Say so rather than
+        # letting the unit be guessed.
+        **({} if ctx.currency.is_rupees else {"note": "figures in these sentences are rupees"}),
     }

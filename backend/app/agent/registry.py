@@ -4,9 +4,10 @@ import json
 import logging
 import time
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from app.db.pool import pool
+from app.ledger.display import Currency
 from app.ledger.service import LedgerError
 from app.llm.provider import ToolCall
 from app.tasks import fire_and_forget
@@ -21,6 +22,11 @@ class ToolContext:
     # What the user actually said this turn, stored verbatim on anything the
     # agent records — the receipt for every entry in the books.
     user_message: str = ""
+    # Where the user is standing. "this page" has to mean something.
+    route: str = ""
+    # What unit the user is reading. The ledger is always rupees; this only
+    # decides what the agent says and how it reads an amount the user states.
+    currency: Currency = field(default_factory=Currency)
 
 
 @dataclass

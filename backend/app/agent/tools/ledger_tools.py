@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 from app.agent.registry import ToolContext, register
 from app.ledger import categories, service
+from app.ledger.display import to_rupees
 from app.ledger.service import LegSpec, UnbalancedTransaction
 from app.memory import episodic, writer
 from app.tasks import fire_and_forget
@@ -167,7 +168,10 @@ def _build_legs(
     },
 )
 async def record_transaction(ctx: ToolContext, args: dict) -> dict:
-    amount = Decimal(str(args["amount"])).quantize(TWO_PLACES)
+    # An amount the user states is in the unit they are reading. The ledger is
+    # always rupees, so convert once here, at the boundary — never in the model,
+    # and never anywhere the stored value could be affected twice.
+    amount = to_rupees(args["amount"], ctx.currency)
     if amount <= 0:
         return {"error": "amount must be positive; use direction to express flow"}
     category = (args.get("category") or "general").strip().lower()
@@ -228,9 +232,7 @@ async def record_transaction(ctx: ToolContext, args: dict) -> dict:
 )
 async def settle_up(ctx: ToolContext, args: dict) -> dict:
     raw_amount = args.get("amount")
-    amount = (
-        Decimal(str(raw_amount)).quantize(TWO_PLACES) if raw_amount is not None else None
-    )
+    amount = to_rupees(raw_amount, ctx.currency) if raw_amount is not None else None
     posted = await service.settle_up(ctx.user_handle, args["person"], amount)
     fire_and_forget(
         episodic.record_event(
@@ -269,7 +271,7 @@ async def repay_debt(ctx: ToolContext, args: dict) -> dict:
         posted = await service.repay(
             ctx.user_handle,
             args["person"],
-            Decimal(str(amount)) if amount is not None else None,
+            to_rupees(amount, ctx.currency) if amount is not None else None,
             raw_input=ctx.user_message,
         )
     except service.NothingOutstanding as exc:

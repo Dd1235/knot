@@ -20,9 +20,11 @@ from pydantic import BaseModel
 import app.agent.tools  # noqa: F401  (registers tools)
 from app.agent.loop import _system_prompt
 from app.agent.registry import ToolContext, dispatch, specs
+from app.agent.routes import describe
 from app.auth.deps import current_user
 from app.config import get_settings
 from app.ledger import scheduled
+from app.ledger.display import Currency
 from app.llm.provider import ToolCall
 from app.memory import procedural, semantic, working
 
@@ -46,6 +48,14 @@ overview, limits, debt, investments, what changed — lead with the single numbe
 that answers them, then at most three supporting figures, then stop. The user
 may have no screen at all, so completeness matters more than brevity there, but
 a recital of every field helps nobody.
+
+ALWAYS say the currency you were given. Tool results carry their own unit —
+"₹5,000" is five thousand rupees, "$57.50" is fifty-seven dollars fifty. Never
+say dollars for a rupee figure or the reverse, and never convert one into the
+other yourself.
+
+Reply in whatever language the user speaks to you, and switch when they switch.
+Amounts keep their unit in every language.
 """
 
 
@@ -54,6 +64,11 @@ class ToolCallIn(BaseModel):
     call_id: str
     name: str
     arguments: str
+    # Sent on every call: the realtime session is minted once but the user can
+    # change the display currency mid-conversation, and the amounts a tool
+    # reports have to follow the screen.
+    route: str | None = None
+    currency: dict | None = None
 
 
 class TurnIn(BaseModel):
@@ -89,6 +104,10 @@ class SessionIn(BaseModel):
     """The caller passes the session it is already in, if any."""
 
     session_id: UUID | None = None
+    # The page the user is on when they start talking.
+    route: str | None = None
+    # The unit they are reading — see ChatIn.currency.
+    currency: dict | None = None
 
 
 @router.post("/session")
@@ -107,7 +126,12 @@ async def create_session(
         x_user, body.session_id if body else None, channel="voice"
     )
     scheduled.catch_up(x_user)
-    instructions = _system_prompt() + VOICE_STYLE + await _standing_context(x_user)
+    instructions = (
+        _system_prompt()
+        + VOICE_STYLE
+        + describe(body.route if body else None)
+        + await _standing_context(x_user)
+    )
 
     payload = {
         "session": {
@@ -153,7 +177,12 @@ async def run_tool(body: ToolCallIn, x_user: str = Depends(current_user)) -> dic
     except json.JSONDecodeError:
         return {"error": "arguments were not valid JSON"}
 
-    ctx = ToolContext(user_handle=x_user, session_id=str(body.session_id))
+    ctx = ToolContext(
+        user_handle=x_user,
+        session_id=str(body.session_id),
+        route=body.route or "",
+        currency=Currency.parse(body.currency),
+    )
     result = await dispatch(ctx, ToolCall(id=body.call_id, name=body.name, arguments=arguments))
     return {"call_id": body.call_id, "result": result}
 

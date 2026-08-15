@@ -10,6 +10,7 @@ from app.agent.loop import run_turn, run_turn_stream
 from app.agent.registry import ToolContext
 from app.auth.deps import current_user
 from app.ledger import scheduled
+from app.ledger.display import Currency
 from app.memory import working
 
 log = logging.getLogger(__name__)
@@ -19,6 +20,12 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 class ChatIn(BaseModel):
     message: str
     session_id: UUID | None = None
+    # Where the user is standing, so "this page" means something.
+    route: str | None = None
+    # What unit they are reading: {"code": "USD", "per_rupee": "0.0115"}.
+    # The ledger is always rupees; this only decides what is said and how an
+    # amount the user states is read.
+    currency: dict | None = None
 
 
 async def _persist_turn(session_id: UUID, message: str, done: dict) -> None:
@@ -40,7 +47,12 @@ async def chat_stream(body: ChatIn, x_user: str = Depends(current_user)):
     session_id = await working.get_or_create_session(x_user, body.session_id)
     scheduled.catch_up(x_user)
     history = await working.load_history(session_id)
-    ctx = ToolContext(user_handle=x_user, session_id=str(session_id))
+    ctx = ToolContext(
+        user_handle=x_user,
+        session_id=str(session_id),
+        route=body.route or "",
+        currency=Currency.parse(body.currency),
+    )
 
     async def sse():
         # A 200 and the headers are already flushed by the time anything can go
@@ -89,7 +101,12 @@ async def chat(body: ChatIn, x_user: str = Depends(current_user)) -> dict:
     scheduled.catch_up(x_user)
     history = await working.load_history(session_id)
 
-    ctx = ToolContext(user_handle=x_user, session_id=str(session_id))
+    ctx = ToolContext(
+        user_handle=x_user,
+        session_id=str(session_id),
+        route=body.route or "",
+        currency=Currency.parse(body.currency),
+    )
     result = await run_turn(ctx, history, body.message)
 
     await working.append_turn(session_id, "user", body.message)
