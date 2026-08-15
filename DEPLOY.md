@@ -3,8 +3,15 @@
 Backend on Fly.io, frontend on Vercel, database already on CockroachDB Cloud.
 Chosen over AWS App Runner because App Runner needs account verification that
 has been pending for a while, and the submission needs a URL more than it needs
-a particular host. AWS still appears where it genuinely does work — S3 for
-exports, CloudWatch for logs.
+a particular host.
+
+**Open item — the AWS requirement.** As of 2026-08-15 this deployment uses no
+AWS service at runtime: Bedrock inference is blocked account-wide (see the
+readme for the re-test), S3 export is configured but unimplemented, and logs
+are JSON on stdout rather than in CloudWatch. Free-tier credits are applied to
+the account but nothing consumes them yet. Closing this needs one of the paths
+below, and each needs a working AWS session first (`aws login` — the CLI
+session on this machine has expired).
 
 Everything below is idempotent; re-running is safe.
 

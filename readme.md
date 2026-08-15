@@ -96,7 +96,7 @@ distributed, failure-surviving database. No bolt-on vector DB, no separate cache
 - **"What I notice"** — the one place the model reads aggregates: it phrases changes SQL
   already found (*"eating out is up 237%"*), and every number in the sentence comes from a
   query, never from generation.
-- **CSV export** of any period to S3.
+- **CSV export** of any period, streamed inline.
 
 ### Memory that earns the name (CoALA four-store)
 
@@ -161,16 +161,31 @@ retrieval strategies, and how both live in one CockroachDB cluster.
 - Also load-bearing: serializable isolation with 40001 retry handling,
   Row-Level TTL on three tables, JSONB.
 
-**AWS**
-- **App Runner + ECR** — the backend container runs here.
-- **S3** — CSV exports.
-- **CloudWatch** — structured JSON request logs, LLM and memory-assembly timings.
+**AWS** — stated as it actually stands, not as it was planned.
+
 - **Bedrock** — implemented behind the same provider protocol as OpenAI, both
   emitting 512-dimension embeddings so the `VECTOR(512)` columns need no
-  migration to switch. It is **not** what runs today: every Bedrock model we
-  tried on this account (Nova, Titan, Mistral, Llama, DeepSeek, Qwen) returns
-  `Operation not allowed`, so inference runs on OpenAI and the Bedrock path
-  stays one environment variable away. Said plainly rather than implied.
+  migration to switch. It is **not** what runs today. Every inference call on
+  this account returns `ValidationException: Operation not allowed` — re-tested
+  2026-08-15 after free-tier credits were applied, across `us-east-1`,
+  `us-west-2` and `ap-south-1`, for Nova (micro/lite/pro), Claude Sonnet 4.5
+  and Titan embeddings, with and without regional inference profiles. The
+  control plane works from the same credentials (`list_foundation_models`
+  returns 122 models, `list_inference_profiles` returns 69), so this is an
+  account-level entitlement gate rather than a billing, region or IAM problem;
+  credits do not lift it. Inference runs on OpenAI and the Bedrock path stays
+  one environment variable away.
+- **S3** — `EXPORT_BUCKET` is wired in config but **not implemented**: CSV
+  export streams inline today. Not claimed as in use.
+- **App Runner / ECR / CloudWatch** — **not in use.** The backend runs on
+  Fly.io (`backend/fly.toml`), chosen because App Runner needs account
+  verification that is still pending; see [DEPLOY.md](DEPLOY.md). Logs are
+  structured JSON on stdout, which is CloudWatch-ready but is not currently
+  shipped to CloudWatch.
+
+*The hackathon requires at least one AWS service. On the evidence above this
+project does not yet meet that bar, and the remaining work is tracked in
+[DEPLOY.md](DEPLOY.md) rather than papered over here.*
 
 ## Design system
 
