@@ -50,6 +50,27 @@ const afterNew = (await p.locator("main").innerText()).trim();
 check(!afterNew.includes(TEXT), "new conversation clears the screen");
 check(/Just say what happened/.test(afterNew), "and the empty state comes back");
 
+// Accessibility: the two barriers that broke the primary action.
+// 1. Sending used to move the composer from the hero into the footer, which
+//    remounts the input and drops focus to <body> — a keyboard user's next
+//    keystroke went nowhere.
+check(
+  await p.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Message"),
+  "focus stays in the composer after sending",
+);
+// 2. The chat had no live region at all, so a screen reader was told nothing.
+check(
+  await p.evaluate(() => {
+    const live = document.querySelector('[role="status"][aria-live="polite"]');
+    return !!live && (live.textContent ?? "").length > 10;
+  }),
+  "the completed reply reaches a live region",
+);
+check(
+  await p.evaluate(() => !!document.querySelector('a[href="#content"]')),
+  "a skip link is present",
+);
+
 // The scroll track belongs to the window, not to a centred column.
 const scrollerIsFullWidth = await p.evaluate(() => {
   const main = document.querySelector("main");
