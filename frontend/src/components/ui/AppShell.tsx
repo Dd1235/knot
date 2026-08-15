@@ -27,11 +27,20 @@ export default function AppShell({
 }) {
   return (
     <div className="flex h-dvh flex-col">
+      {/* AppNav puts ~12 tab stops before the content on every page, and it is
+          the same 12 on each one. Hidden until focused, so it costs a sighted
+          user nothing and a keyboard user eleven keystrokes per navigation. */}
+      <a
+        href="#content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface-card focus:px-4 focus:py-2 focus:text-sm focus:text-ink-primary focus:shadow-lg"
+      >
+        Skip to content
+      </a>
       <AppNav actions={actions} measure={measure} />
       {/* Horizontal padding sits OUTSIDE the measure box, exactly as it does
           in AppNav and the chat footer — all three centre the same box in the
           same padded area, which is what makes their left edges one line. */}
-      <main className="flex-1 overflow-y-auto px-6 sm:px-8">
+      <main id="content" tabIndex={-1} className="flex-1 overflow-y-auto px-6 sm:px-8">
         <div className={`mx-auto w-full ${measure} ${contentClassName}`}>
           {children}
         </div>
@@ -46,5 +55,25 @@ export default function AppShell({
 export function PageTitle({ children }: { children: ReactNode }) {
   return (
     <h1 className="text-[32px] font-bold leading-tight tracking-[-0.02em]">{children}</h1>
+  );
+}
+
+/** In the accessibility tree, absent from the page.
+ *
+ * `sr-only` rather than `hidden`: display:none removes a node from the
+ * accessibility tree entirely, which is the opposite of what a screen-reader
+ * heading or live region is for. */
+export function ScreenReaderOnly({
+  children,
+  as: Tag = "span",
+  ...rest
+}: {
+  children: ReactNode;
+  as?: "span" | "h1" | "h2" | "p" | "div";
+} & React.HTMLAttributes<HTMLElement>) {
+  return (
+    <Tag className="sr-only" {...rest}>
+      {children}
+    </Tag>
   );
 }

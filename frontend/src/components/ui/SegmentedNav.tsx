@@ -19,7 +19,11 @@ export default function SegmentedNav<T extends string>({
   className?: string;
 }) {
   return (
-    <nav role="tablist" aria-label={label} className={`flex gap-1 ${className}`}>
+    /* A div, not a nav: role="tablist" overrides the element's implicit role,
+       so a <nav> here announced as a tablist and the navigation landmark was
+       silently lost. These are filters, not navigation, so the landmark was
+       never the right claim anyway. */
+    <div role="tablist" aria-label={label} className={`flex gap-1 ${className}`}>
       {items.map((item) => {
         const active = item.id === value;
         return (
@@ -39,6 +43,6 @@ export default function SegmentedNav<T extends string>({
           </button>
         );
       })}
-    </nav>
+    </div>
   );
 }

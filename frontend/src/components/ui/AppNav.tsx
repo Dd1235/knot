@@ -46,7 +46,12 @@ export default function AppNav({
       <Link
         key={d.href}
         href={d.href}
-        aria-label={d.label}
+        // The accessible name must CONTAIN the visible text (WCAG 2.5.3,
+        // "Label in Name"). It used to be replaced outright — the link read
+        // "ledger" but announced "All transactions" — so "click ledger" failed
+        // in Voice Control and Dragon. In a voice-first product, of all things.
+        // The longer wording now rides in `title` instead, which is advisory.
+        title={d.label}
         aria-current={active ? "page" : undefined}
         className={`shrink-0 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${
           active
