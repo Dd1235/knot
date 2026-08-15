@@ -120,13 +120,14 @@ def _build_legs(
     "record_transaction",
     "Record a money event as a balanced double-entry transaction. Use for any "
     "statement about spending, receiving, lending, or borrowing money. Amounts "
-    "are INR. For 'paid X split N ways', pass the TOTAL amount and the OTHER "
+    "are as the user said them. For 'paid X split N ways', pass the TOTAL "
+    "amount and the OTHER "
     "people's names in split_with.",
     {
         "type": "object",
         "properties": {
             "description": {"type": "string", "description": "Short human description"},
-            "amount": {"type": "number", "description": "Total amount in INR, positive"},
+            "amount": {"type": "number", "description": "Total, positive, in whatever unit the user said"},
             "direction": {
                 "type": "string",
                 "enum": ["spent", "received", "refund", "lent", "borrowed"],
@@ -225,7 +226,7 @@ async def record_transaction(ctx: ToolContext, args: dict) -> dict:
         "type": "object",
         "properties": {
             "person": {"type": "string"},
-            "amount": {"type": "number", "description": "INR; omit for full settlement"},
+            "amount": {"type": "number", "description": "As the user said it; omit for full settlement"},
         },
         "required": ["person"],
     },
@@ -259,7 +260,7 @@ async def settle_up(ctx: ToolContext, args: dict) -> dict:
             "person": {"type": "string"},
             "amount": {
                 "type": "number",
-                "description": "INR repaid; omit to repay the full outstanding",
+                "description": "As the user said it; omit to repay the full outstanding",
             },
         },
         "required": ["person"],
@@ -294,7 +295,7 @@ async def repay_debt(ctx: ToolContext, args: dict) -> dict:
                 "type": "string",
                 "description": "What was sold: stocks, mutual_funds, gold, crypto, fd...",
             },
-            "proceeds": {"type": "number", "description": "INR actually received"},
+            "proceeds": {"type": "number", "description": "Actually received, as the user said it"},
             "fraction": {
                 "type": "number",
                 "description": "Portion of the holding sold, 0-1; omit for all of it",
@@ -310,7 +311,7 @@ async def sell_investment(ctx: ToolContext, args: dict) -> dict:
         posted = await service.sell_investment(
             ctx.user_handle,
             category,
-            Decimal(str(args["proceeds"])),
+            to_rupees(args["proceeds"], ctx.currency),
             fraction=Decimal(str(args["fraction"])) if args.get("fraction") else None,
             description=args.get("description") or "",
             raw_input=ctx.user_message,

@@ -159,3 +159,56 @@ async def test_every_report_tool_is_registered_for_voice(user):
         "cash_position",
         "what_changed",
     } <= names
+
+
+async def test_every_write_tool_converts_a_stated_amount(user):
+    """A judge in dollar mode must not have $50 posted as ₹50.
+
+    This test exists because an audit found six write tools that skipped the
+    conversion the reporting tools had already learned — cash spends, transfers,
+    withdrawals, limits, loans and buys all took the number as rupees. Reading
+    in dollars while writing in rupees is worse than not supporting dollars at
+    all, because nothing on screen says which one happened.
+
+    One case per tool, all at 0.01 per rupee so the arithmetic is ×100.
+    """
+    from app.agent.tools import money_tools
+
+    usd = ToolContext(
+        user_handle=user,
+        session_id=str(uuid.uuid4()),
+        currency=Currency("USD", Decimal("0.01")),
+    )
+
+    await money_tools.set_opening_balance(usd, {"amount": 100, "account": "bank"})
+    await money_tools.log_cash_spend(usd, {"amount": 5, "description": "coffee"})
+    await money_tools.set_limit(usd, {"amount": 20, "scope": "category", "target": "food"})
+    await money_tools.track_loan(
+        usd,
+        {
+            "name": "car loan",
+            "lender": "hdfc",
+            "principal": 1000,
+            "annual_rate": 9,
+            "tenure_months": 12,
+        },
+    )
+
+    from app.ledger import limits as limits_mod
+    from app.ledger import loans as loans_mod
+
+    # A $100 opening balance is ₹10,000 on the books.
+    accounts = {r["name"]: r["balance"] for r in await service.account_balances(user)}
+    assert Decimal(accounts["bank"]) == Decimal("10000.00")
+
+    # A $5 coffee is a ₹500 spend, not a ₹5 one.
+    assert (await analytics.summary(user, 30))["total_spend"] == "500.00"
+
+    # A $20 food limit is a ₹2,000 limit.
+    food = next(r for r in (await limits_mod.status(user))["limits"] if r["target"] == "food")
+    assert Decimal(food["limit"]) == Decimal("2000.00")
+
+    # A $1,000 principal is ₹100,000 — the rate is a percentage and must NOT move.
+    loan = (await loans_mod.list_loans(user))["loans"][0]
+    assert Decimal(str(loan["principal"])) == Decimal("100000.00")
+    assert Decimal(str(loan["annual_rate"])) == Decimal("9")

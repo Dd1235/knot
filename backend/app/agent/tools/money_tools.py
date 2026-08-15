@@ -8,6 +8,7 @@ from psycopg.rows import dict_row
 from app.agent.registry import ToolContext, register
 from app.db.tx import run_serializable
 from app.ledger import analytics, holdings, limits, loans, recurring, service
+from app.ledger.display import to_rupees
 from app.ledger.service import LedgerError, LegSpec
 
 TWO_PLACES = Decimal("0.01")
@@ -90,7 +91,7 @@ async def set_opening_balance_for(
     {
         "type": "object",
         "properties": {
-            "amount": {"type": "number", "description": "Current balance in INR, positive"},
+            "amount": {"type": "number", "description": "Current balance, positive, as the user said it"},
             "account": {
                 "type": "string",
                 "description": "Target account, e.g. cash or bank; default cash",
@@ -100,7 +101,7 @@ async def set_opening_balance_for(
     },
 )
 async def set_opening_balance(ctx: ToolContext, args: dict) -> dict:
-    amount = Decimal(str(args["amount"])).quantize(TWO_PLACES)
+    amount = to_rupees(args["amount"], ctx.currency)
     if amount <= 0:
         return {"error": "amount must be positive"}
     account = (args.get("account") or "cash").strip().lower()
@@ -124,7 +125,7 @@ async def set_opening_balance(ctx: ToolContext, args: dict) -> dict:
         "type": "object",
         "properties": {
             "name": {"type": "string", "description": "e.g. Netflix, Rent, Salary"},
-            "amount": {"type": "number", "description": "Amount per period in INR, positive"},
+            "amount": {"type": "number", "description": "Amount per period, positive, as the user said it"},
             "cadence": {"type": "string", "enum": ["monthly", "quarterly", "yearly"]},
             "due_day": {
                 "type": "integer",
@@ -145,7 +146,7 @@ async def track_recurring(ctx: ToolContext, args: dict) -> dict:
     commitment = await recurring.upsert_commitment(
         ctx.user_handle,
         args["name"],
-        Decimal(str(args["amount"])),
+        to_rupees(args["amount"], ctx.currency),
         cadence=args.get("cadence") or "monthly",
         due_day=args.get("due_day"),
         category=args.get("category") or "subscriptions",
@@ -191,7 +192,7 @@ async def stop_recurring(ctx: ToolContext, args: dict) -> dict:
     {
         "type": "object",
         "properties": {
-            "amount": {"type": "number", "description": "INR withdrawn"},
+            "amount": {"type": "number", "description": "Withdrawn, as the user said it"},
             "account": {
                 "type": "string",
                 "description": "Account it came from, default 'bank'",
@@ -201,7 +202,7 @@ async def stop_recurring(ctx: ToolContext, args: dict) -> dict:
     },
 )
 async def withdraw_cash(ctx: ToolContext, args: dict) -> dict:
-    amount = Decimal(str(args["amount"])).quantize(TWO_PLACES)
+    amount = to_rupees(args["amount"], ctx.currency)
     if amount <= 0:
         return {"error": "amount must be positive"}
     source = (args.get("account") or "bank").strip().lower()
@@ -233,7 +234,7 @@ async def withdraw_cash(ctx: ToolContext, args: dict) -> dict:
     },
 )
 async def transfer_money(ctx: ToolContext, args: dict) -> dict:
-    amount = Decimal(str(args["amount"])).quantize(TWO_PLACES)
+    amount = to_rupees(args["amount"], ctx.currency)
     if amount <= 0:
         return {"error": "amount must be positive"}
     source = (args["from_account"] or "").strip().lower()
@@ -269,7 +270,7 @@ async def transfer_money(ctx: ToolContext, args: dict) -> dict:
     },
 )
 async def log_cash_spend(ctx: ToolContext, args: dict) -> dict:
-    amount = Decimal(str(args["amount"])).quantize(TWO_PLACES)
+    amount = to_rupees(args["amount"], ctx.currency)
     if amount <= 0:
         return {"error": "amount must be positive"}
     category = (args.get("category") or "general").strip().lower()
@@ -298,7 +299,7 @@ async def log_cash_spend(ctx: ToolContext, args: dict) -> dict:
         "type": "object",
         "properties": {
             "name": {"type": "string", "description": "e.g. Home Loan, Bike Loan"},
-            "principal": {"type": "number", "description": "Amount borrowed, INR"},
+            "principal": {"type": "number", "description": "Amount borrowed, as the user said it"},
             "annual_rate": {"type": "number", "description": "Annual interest %, e.g. 8.75"},
             "tenure_months": {"type": "integer", "minimum": 1},
             "emi": {"type": "number", "description": "Monthly payment if known"},
@@ -314,10 +315,10 @@ async def track_loan(ctx: ToolContext, args: dict) -> dict:
         loan = await loans.add_loan(
             ctx.user_handle,
             args["name"],
-            Decimal(str(args["principal"])),
+            to_rupees(args["principal"], ctx.currency),
             Decimal(str(args["annual_rate"])),
             int(args["tenure_months"]),
-            emi=Decimal(str(args["emi"])) if args.get("emi") else None,
+            emi=to_rupees(args["emi"], ctx.currency) if args.get("emi") else None,
             lender=args.get("lender") or "",
             due_day=int(args.get("due_day") or 5),
             already_running=bool(args.get("already_running")),
@@ -351,10 +352,10 @@ async def list_loans(ctx: ToolContext, args: dict) -> dict:
         "properties": {
             "symbol": {"type": "string", "description": "e.g. reliance, infy, parag_flexi"},
             "quantity": {"type": "number", "description": "Units, shares or grams, if stated"},
-            "unit_price": {"type": "number", "description": "Price per unit in INR, if stated"},
+            "unit_price": {"type": "number", "description": "Price per unit, as the user said it, if stated"},
             "amount": {
                 "type": "number",
-                "description": "Total INR put in, when no units were stated",
+                "description": "Total put in, as the user said it, when no units were stated",
             },
             "kind": {
                 "type": "string",
@@ -374,8 +375,8 @@ async def buy_investment(ctx: ToolContext, args: dict) -> dict:
             ctx.user_handle,
             args["symbol"],
             Decimal(str(qty)) if qty is not None else None,
-            Decimal(str(price)) if price is not None else None,
-            amount=Decimal(str(total)) if total is not None else None,
+            to_rupees(price, ctx.currency) if price is not None else None,
+            amount=to_rupees(total, ctx.currency) if total is not None else None,
             kind=(args.get("kind") or "stocks"),
             account=(args.get("account") or "bank").strip().lower(),
             raw_input=ctx.user_message,
@@ -410,7 +411,7 @@ async def sell_units(ctx: ToolContext, args: dict) -> dict:
             ctx.user_handle,
             args["symbol"],
             Decimal(str(args["quantity"])),
-            Decimal(str(args["unit_price"])),
+            to_rupees(args["unit_price"], ctx.currency),
             kind=(args.get("kind") or "stocks"),
             account=(args.get("account") or "bank").strip().lower(),
             raw_input=ctx.user_message,
@@ -436,7 +437,7 @@ async def sell_units(ctx: ToolContext, args: dict) -> dict:
 async def mark_price(ctx: ToolContext, args: dict) -> dict:
     try:
         return await holdings.mark_price(
-            ctx.user_handle, args["symbol"], Decimal(str(args["price"]))
+            ctx.user_handle, args["symbol"], to_rupees(args["price"], ctx.currency)
         )
     except LedgerError as exc:
         return {"error": str(exc)}
@@ -462,7 +463,7 @@ async def list_holdings(ctx: ToolContext, args: dict) -> dict:
     {
         "type": "object",
         "properties": {
-            "amount": {"type": "number", "description": "Monthly cap in INR"},
+            "amount": {"type": "number", "description": "Monthly cap, as the user said it"},
             "scope": {"type": "string", "enum": ["total", "group", "category"]},
             "target": {
                 "type": "string",
@@ -479,7 +480,7 @@ async def set_limit(ctx: ToolContext, args: dict) -> dict:
     try:
         row = await limits.set_limit(
             ctx.user_handle,
-            Decimal(str(args["amount"])),
+            to_rupees(args["amount"], ctx.currency),
             scope=args.get("scope") or "total",
             target=args.get("target") or "",
         )
