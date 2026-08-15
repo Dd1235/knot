@@ -1,7 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import AppNav from "./AppNav";
+import VoiceOverlay from "./VoiceOverlay";
 
 /** The one page frame.
  *
@@ -25,8 +27,23 @@ export default function AppShell({
   measure?: string;
   contentClassName?: string;
 }) {
+  /* App Router client navigation moves neither focus nor announcement, so a
+   * screen-reader user gets no signal that the page changed. The document
+   * title is already per-route (each route has its own metadata layout), so
+   * announcing it is both accurate and free. */
+  const pathname = usePathname();
+  const [routeAnnouncement, setRouteAnnouncement] = useState("");
+  useEffect(() => {
+    // A frame after navigation, so the new route's <title> has been applied.
+    const t = setTimeout(() => setRouteAnnouncement(document.title), 120);
+    return () => clearTimeout(t);
+  }, [pathname]);
+
   return (
     <div className="flex h-dvh flex-col">
+      <ScreenReaderOnly role="status" aria-live="polite">
+        {routeAnnouncement}
+      </ScreenReaderOnly>
       {/* AppNav puts ~12 tab stops before the content on every page, and it is
           the same 12 on each one. Hidden until focused, so it costs a sighted
           user nothing and a keyboard user eleven keystrokes per navigation. */}
@@ -46,6 +63,8 @@ export default function AppShell({
         </div>
       </main>
       {footer}
+      {/* Rendered by the shell, so it opens over any page. */}
+      <VoiceOverlay />
     </div>
   );
 }

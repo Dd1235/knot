@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { login, signup } from "@/lib/api";
+import { getMe, login, signup } from "@/lib/api";
 import Button from "@/components/ui/Button";
 import Logo from "@/components/ui/Logo";
 import { inputClass } from "@/components/ui/styles";
@@ -14,6 +14,22 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /* Already signed in? Don't show a login form to someone who is logged in —
+   * the session cookie is httpOnly, so the only way to know is to ask.
+   * `checking` keeps the form hidden until we do, otherwise a signed-in user
+   * sees a flash of "Sign in" before being redirected away from it.
+   *
+   * Locally this always redirects, because with AUTH_REQUIRED off /auth/me
+   * answers for anyone — which is correct, not a bug: with auth disabled you
+   * really are signed in as `demo`, and there is no login to perform. Set
+   * AUTH_REQUIRED=true to work on this page. */
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    getMe()
+      .then(() => router.replace("/app"))
+      .catch(() => setChecking(false));
+  }, [router]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +44,8 @@ export default function LoginPage() {
       setBusy(false);
     }
   };
+
+  if (checking) return null;
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-10">

@@ -10,8 +10,8 @@ import {
   sendChatStream,
 } from "@/lib/api";
 import { cinchKnot, WRITE_TOOLS } from "@/lib/knot";
-import { stopSpeaking, unlockSpeech, useSpeechInput } from "@/lib/speech";
-import VoiceMode from "@/components/VoiceMode";
+import { useVoice } from "@/lib/voice-context";
+import { stopSpeaking, useSpeechInput } from "@/lib/speech";
 import AppShell, { PageTitle, ScreenReaderOnly } from "@/components/ui/AppShell";
 import Button from "@/components/ui/Button";
 import Logo from "@/components/ui/Logo";
@@ -53,7 +53,7 @@ const TOOL_BADGES: Record<string, string> = {
 
 /** Grouped so the empty state shows the range, not just the easiest thing.
  * Someone landing here has no idea this tracks EMIs, holdings or limits. */
-const EXAMPLE_GROUPS = [
+const EXAMPLE_GROUPS: { title: string; items: string[]; voice?: boolean }[] = [
   {
     title: "everyday",
     items: ["chai 15", "gpay'd 40 for auto", "paid 200 cash for vegetables"],
@@ -77,6 +77,13 @@ const EXAMPLE_GROUPS = [
   {
     title: "limits",
     items: ["keep me under 10k for food", "how am I doing this month?"],
+  },
+  {
+    // The only group whose chips open voice rather than sending text — until
+    // now nothing in the empty state mentioned that talking was possible.
+    title: "say it out loud",
+    voice: true,
+    items: ["read me my finances", "how am I doing this month?", "what changed?"],
   },
   {
     title: "it remembers",
@@ -286,8 +293,13 @@ export default function ChatPage() {
     [busy, sessionId]
   );
 
-  const [voiceOpen, setVoiceOpen] = useState(false);
   const [focused, setFocused] = useState(false);
+  const { open: voiceOpen, openVoice, setHandler } = useVoice();
+
+  /* The shell owns the overlay so it can open anywhere, but on this page a
+   * spoken turn should stream into the visible conversation exactly as a typed
+   * one does — so chat lends the shell its own send(). */
+  useEffect(() => setHandler(send), [send, setHandler]);
   /* The footer mic is DICTATION, not a conversation.
    *
    * It used to send the moment recognition ended and speak the reply, which
@@ -400,18 +412,6 @@ export default function ChatPage() {
       contentClassName="py-5"
       actions={
         <>
-          {mic.supported && (
-            <Button
-              variant="tonal"
-              tone="brand"
-              onClick={() => {
-                unlockSpeech();
-                setVoiceOpen(true);
-              }}
-            >
-              voice
-            </Button>
-          )}
           <Button
             onClick={newSession}
             title="Start a new conversation — memory persists across all of them"
@@ -434,9 +434,6 @@ export default function ChatPage() {
         )
       }
     >
-      {voiceOpen && (
-        <VoiceMode onUtterance={(text) => send(text)} onClose={() => setVoiceOpen(false)} />
-      )}
       {/* The hero's PageTitle disappears once a conversation starts, leaving the
           app's main screen with no h1 at all. */}
       {!heroMode && <ScreenReaderOnly as="h1">Chat</ScreenReaderOnly>}
@@ -481,7 +478,7 @@ export default function ChatPage() {
                   {group.items.map((item) => (
                     <button
                       key={item}
-                      onClick={() => send(item)}
+                      onClick={() => (group.voice ? openVoice() : send(item))}
                       className="rounded-lg border border-line bg-surface-card px-3 py-1.5 text-left text-sm text-ink-secondary transition-colors hover:border-line-strong hover:bg-surface-raised hover:text-ink-primary"
                     >
                       {item}

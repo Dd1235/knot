@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import "./globals.css";
+import { VoiceProvider } from "@/lib/voice-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -58,7 +59,10 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col bg-surface-base text-ink-primary">
-        {children}
+        {/* Above every page, because a page renders AppShell rather than
+            living inside it — a provider mounted by AppShell would be below
+            the component that needs to call useVoice(). */}
+        <VoiceProvider>{children}</VoiceProvider>
       </body>
     </html>
   );

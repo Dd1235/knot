@@ -71,6 +71,14 @@ check(
   "a skip link is present",
 );
 
+// Voice is the product's distinguishing feature; it used to exist on one page.
+await p.goto("http://localhost:3100/insights", { waitUntil: "networkidle" });
+await p.waitForTimeout(1500);
+check(
+  await p.getByRole("button", { name: /talk to knot/i }).isVisible().catch(() => false),
+  "voice is reachable from a page that is not chat",
+);
+
 // The scroll track belongs to the window, not to a centred column.
 const scrollerIsFullWidth = await p.evaluate(() => {
   const main = document.querySelector("main");

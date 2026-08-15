@@ -7,6 +7,7 @@ import { Wordmark } from "./Logo";
 import CurrencyToggle from "./CurrencyToggle";
 import ThemeToggle from "./ThemeToggle";
 import SignOutButton from "./SignOutButton";
+import VoiceButton from "./VoiceButton";
 import { useKnotCinch } from "@/lib/knot";
 
 export const DESTINATIONS = [
@@ -75,6 +76,10 @@ export default function AppNav({
             {links}
           </nav>
           <div className="ml-auto flex shrink-0 items-center gap-2">
+            {/* First in the cluster and the only gold fill on the page: voice
+                is the product's distinguishing feature and used to look like
+                the theme toggle. */}
+            <VoiceButton />
             {actions}
             <CurrencyToggle />
             <ThemeToggle />
