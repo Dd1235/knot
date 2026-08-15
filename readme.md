@@ -163,29 +163,50 @@ retrieval strategies, and how both live in one CockroachDB cluster.
 
 **AWS** — stated as it actually stands, not as it was planned.
 
-- **Bedrock** — implemented behind the same provider protocol as OpenAI, both
-  emitting 512-dimension embeddings so the `VECTOR(512)` columns need no
-  migration to switch. It is **not** what runs today. Every inference call on
-  this account returns `ValidationException: Operation not allowed` — re-tested
-  2026-08-15 after free-tier credits were applied, across `us-east-1`,
-  `us-west-2` and `ap-south-1`, for Nova (micro/lite/pro), Claude Sonnet 4.5
-  and Titan embeddings, with and without regional inference profiles. The
-  control plane works from the same credentials (`list_foundation_models`
-  returns 122 models, `list_inference_profiles` returns 69), so this is an
-  account-level entitlement gate rather than a billing, region or IAM problem;
-  credits do not lift it. Inference runs on OpenAI and the Bedrock path stays
-  one environment variable away.
-- **S3** — `EXPORT_BUCKET` is wired in config but **not implemented**: CSV
-  export streams inline today. Not claimed as in use.
-- **App Runner / ECR / CloudWatch** — **not in use.** The backend runs on
-  Fly.io (`backend/fly.toml`), chosen because App Runner needs account
-  verification that is still pending; see [DEPLOY.md](DEPLOY.md). Logs are
-  structured JSON on stdout, which is CloudWatch-ready but is not currently
-  shipped to CloudWatch.
+- **App Runner** — the backend runs here, in `ap-south-1`, same region as the
+  CockroachDB cluster. `/healthz` reports a ~7 ms database round trip; a
+  serializable ledger reads *inside* the write, so crossing an ocean between
+  the two would be felt on every request.
+- **ECR Public** — hosts the container image App Runner serves
+  (`public.ecr.aws/s5q3w4x0/knot-api`). Public rather than private for a
+  specific reason, below.
+- **ECR** — private repository, holds the same image.
+- **CloudWatch Logs** — the application's structured JSON goes here; the first
+  deployment failure was diagnosed by reading it.
+- **SSM Parameter Store** — three `SecureString` parameters under `/knot/`.
+- **IAM** — two App Runner service roles plus a `knot-deployer` user scoped to
+  App Runner, ECR, SSM under `/knot/*`, and `PassRole` on exactly two roles.
 
-*The hackathon requires at least one AWS service. On the evidence above this
-project does not yet meet that bar, and the remaining work is tracked in
-[DEPLOY.md](DEPLOY.md) rather than papered over here.*
+Two account-level restrictions shaped that list, and both are worth stating
+plainly because they are not code problems:
+
+- **`iam:PassRole` is refused account-wide.** `CreateService` returns *"Account
+  … is not authorized pass this role"* even with `PassRole` widened to `*`, the
+  conventional role name, and the service-linked role present. A service built
+  from a *public* image — needing no role — creates fine, which is what
+  isolates the failure to `PassRole` rather than to App Runner. The consequence:
+  the image is served from ECR Public, and secrets are runtime environment
+  variables rather than the SSM `RuntimeEnvironmentSecrets` (which require an
+  instance role). The SSM parameters exist and are ready for the day it clears.
+- **Bedrock inference is not authorized on this account.** Implemented behind
+  the same provider protocol as OpenAI — both emit 512-dimension embeddings, so
+  the `VECTOR(512)` columns need no migration to switch — but it is not what
+  runs. Re-tested 2026-08-15 with credits applied and a valid long-term API
+  key: `get-foundation-model-availability` returns
+  `authorizationStatus: NOT_AUTHORIZED` while `regionAvailability`,
+  `entitlementAvailability` and `agreementAvailability` all read `AVAILABLE`,
+  in `us-east-1`, `us-west-2` and `ap-south-1`. **This is not an Anthropic
+  licensing issue**: Amazon Nova and Titan, Meta Llama, Mistral and DeepSeek
+  all report `NOT_AUTHORIZED` with `agreementAvailability: AVAILABLE`, i.e. no
+  provider agreement is even required and they are still blocked. The key
+  authenticates — it is how `list_foundation_models` returns 122 models — so
+  this is authorization, not authentication, and credits do not lift it.
+  Inference runs on OpenAI; Bedrock stays one environment variable away.
+- **S3** — `EXPORT_BUCKET` is wired in config but **not implemented**: CSV
+  export streams inline. Not claimed as in use.
+
+Teardown is a single script: `./scripts/aws-teardown.sh` (dry run by default,
+`--yes` to apply) removes every resource above.
 
 ## Design system
 
