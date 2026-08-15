@@ -7,6 +7,10 @@ become durable agent memory — recalled by meaning, not exact match.
 
 Built for the [CockroachDB × AWS Hackathon: Build with Agentic Memory](https://cockroachdb-ai.devpost.com/).
 
+**Live:** [frontend-flame-chi-lahigc424k.vercel.app](https://frontend-flame-chi-lahigc424k.vercel.app)
+· API on AWS App Runner in `ap-south-1`
+([health](https://jmm87vpt23.ap-south-1.awsapprunner.com/healthz))
+
 ## Why CockroachDB
 
 Money needs strict serializable ACID; *"what do I usually spend on weekends?"* needs semantic

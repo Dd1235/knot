@@ -1,17 +1,82 @@
 # Deploying Knot
 
-Backend on Fly.io, frontend on Vercel, database already on CockroachDB Cloud.
-Chosen over AWS App Runner because App Runner needs account verification that
-has been pending for a while, and the submission needs a URL more than it needs
-a particular host.
+**Currently deployed:** backend on **AWS App Runner** (`ap-south-1`), frontend
+on **Vercel**, database on **CockroachDB Cloud** (`aws-ap-south-1`). The
+backend and the cluster share a region deliberately — a serializable ledger
+reads inside the write, so the round trip is paid on every request. Measured:
+~7 ms.
 
-**Open item — the AWS requirement.** As of 2026-08-15 this deployment uses no
-AWS service at runtime: Bedrock inference is blocked account-wide (see the
-readme for the re-test), S3 export is configured but unimplemented, and logs
-are JSON on stdout rather than in CloudWatch. Free-tier credits are applied to
-the account but nothing consumes them yet. Closing this needs one of the paths
-below, and each needs a working AWS session first (`aws login` — the CLI
-session on this machine has expired).
+- API: `https://jmm87vpt23.ap-south-1.awsapprunner.com`
+- App: `https://frontend-flame-chi-lahigc424k.vercel.app`
+- Image: `public.ecr.aws/s5q3w4x0/knot-api:latest`
+
+## Two things that bit, and why the setup looks odd
+
+**1. `sslrootcert=system` is required.** The container ships no CA file, so
+`sslmode=verify-full` fails at boot with *"root certificate file
+/home/knot/.postgresql/root.crt does not exist"* — the first deployment died
+exactly there, and CloudWatch is where that was read. CockroachDB Cloud
+presents a publicly-trusted certificate, so pointing psycopg at the OS trust
+store keeps verification full with nothing to ship or rotate. Append
+`&sslrootcert=system` to `DATABASE_URL` for any containerised deployment.
+
+**2. `iam:PassRole` is refused on this account**, which is why the image comes
+from ECR *Public* and why secrets are runtime environment variables rather
+than SSM `RuntimeEnvironmentSecrets`. Both of those need a role passed to
+App Runner. Diagnosis: a service built from a public image (no role) creates
+fine; the same service with an access role fails with *"Account … is not
+authorized pass this role"* even with `PassRole` widened to `*`. The SSM
+parameters are already created for the day it clears.
+
+**Security consequence to close after judging:** `DATABASE_URL` sits in the
+App Runner service configuration rather than in SSM. It is encrypted at rest
+and readable only by principals in the account, but **rotate the CockroachDB
+password once the demo is over**, and run the teardown.
+
+## Redeploying the backend
+
+```bash
+docker build --platform linux/amd64 -t knot-api backend/
+aws ecr-public get-login-password --region us-east-1 \
+  | docker login --username AWS --password-stdin public.ecr.aws
+docker tag knot-api public.ecr.aws/s5q3w4x0/knot-api:latest
+docker push public.ecr.aws/s5q3w4x0/knot-api:latest
+AWS_PROFILE=knot aws apprunner start-deployment --region ap-south-1 \
+  --service-arn arn:aws:apprunner:ap-south-1:808175385445:service/knot-api/08dd79d24bc545a3972be4e32e8fc2cf
+```
+
+Migrations run at container boot, so a schema change ships with the image.
+
+## Frontend
+
+```bash
+cd frontend && vercel link && vercel --prod
+```
+
+`NEXT_PUBLIC_API_URL` is set in the Vercel production environment. After a
+domain change, update `CORS_ORIGINS` on the App Runner service or sign-in
+breaks: the session cookie is `SameSite=None`, and the origin check is the
+replacement CSRF defence.
+
+## Tearing it all down
+
+```bash
+./scripts/aws-teardown.sh          # dry run — lists, deletes nothing
+./scripts/aws-teardown.sh --yes    # applies
+```
+
+IAM is read with a separate profile (`IAM_PROFILE`, default `default`) because
+`knot-deployer` deliberately cannot see IAM — without that split the dry run
+reports "none" for resources that exist, which is the worst possible bug in a
+teardown script.
+
+## Fallback: Fly.io
+
+`scripts/deploy-backend.sh` and `backend/fly.toml` deploy the same image to
+Fly (`bom`) with `flyctl auth login`. Kept because it needs no `PassRole` and
+builds remotely, so it works when AWS does not.
+
+---
 
 Everything below is idempotent; re-running is safe.
 
