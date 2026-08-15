@@ -30,14 +30,58 @@ declare global {
   }
 }
 
-/** American English, not Indian.
+/** The on-device engine's language.
  *
- * en-IN picks an Indian-accented system voice on most platforms, and its
- * coverage is patchier than en-US — on several browsers the Indian voice
- * simply does not exist and synthesis falls back to something worse. Amounts
- * are still formatted in Indian digit grouping; this is only how it sounds.
+ * Default is American English, not Indian: en-IN picks an Indian-accented
+ * system voice on most platforms, and its coverage is patchier than en-US — on
+ * several browsers the Indian voice simply does not exist and synthesis falls
+ * back to something worse. Amounts are still formatted in Indian digit
+ * grouping; this is only how it sounds.
+ *
+ * It is a preference rather than a constant because recognition accuracy is
+ * language-specific: speaking Hindi at an en-US recogniser produces nonsense,
+ * and no prompt can rescue a transcript that was wrong before the model saw
+ * it. The LIVE engine needs none of this — it detects the language itself.
  */
-const SPEECH_LANG = "en-US";
+export const SPEECH_LANGS: { code: string; label: string }[] = [
+  { code: "en-US", label: "English" },
+  { code: "en-IN", label: "English (India)" },
+  { code: "hi-IN", label: "हिन्दी" },
+  { code: "ta-IN", label: "தமிழ்" },
+  { code: "te-IN", label: "తెలుగు" },
+  { code: "mr-IN", label: "मराठी" },
+  { code: "bn-IN", label: "বাংলা" },
+  { code: "es-ES", label: "Español" },
+  { code: "fr-FR", label: "Français" },
+  { code: "de-DE", label: "Deutsch" },
+];
+
+const LANG_KEY = "knot:speech-lang";
+const LANG_EVENT = "knot:speech-lang-changed";
+
+export function readSpeechLang(): string {
+  if (typeof window === "undefined") return "en-US";
+  return localStorage.getItem(LANG_KEY) ?? "en-US";
+}
+
+export function setSpeechLang(code: string): void {
+  localStorage.setItem(LANG_KEY, code);
+  window.dispatchEvent(new Event(LANG_EVENT));
+}
+
+function subscribeLang(onChange: () => void) {
+  window.addEventListener(LANG_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(LANG_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+/** Subscribed, so the overlay's picker takes effect on the next utterance. */
+export function useSpeechLang(): string {
+  return useSyncExternalStore(subscribeLang, readSpeechLang, () => "en-US");
+}
 
 
 /** Capability checks don't change, so there is nothing to subscribe to. */
@@ -77,7 +121,7 @@ export function useSpeechInput(handlers: {
     const Ctor = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!Ctor || recognitionRef.current) return;
     const recognition = new Ctor();
-    recognition.lang = SPEECH_LANG;
+    recognition.lang = readSpeechLang();
     recognition.continuous = false;
     recognition.interimResults = true;
     finalRef.current = "";
@@ -118,7 +162,7 @@ export function speak(text: string, onEnd?: () => void) {
   }
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = SPEECH_LANG;
+  utterance.lang = readSpeechLang();
   utterance.rate = 1.05;
 
   if (onEnd) {

@@ -74,9 +74,28 @@ check(
 // Voice is the product's distinguishing feature; it used to exist on one page.
 await p.goto("http://localhost:3100/insights", { waitUntil: "networkidle" });
 await p.waitForTimeout(1500);
+// Scoped to the header: the sr-only "Talk to Knot" quick action shares this
+// accessible name by design, and an unscoped locator matches both.
 check(
-  await p.getByRole("button", { name: /talk to knot/i }).isVisible().catch(() => false),
+  await p
+    .locator("header")
+    .getByRole("button", { name: /talk to knot/i })
+    .isVisible()
+    .catch(() => false),
   "voice is reachable from a page that is not chat",
+);
+
+// The accessibility claim, asserted: two keystrokes to talk, from any page.
+// "Click the voice button" is not an answer for someone who cannot see it.
+await p.keyboard.press("Tab");
+await p.keyboard.press("Tab");
+const second = await p.evaluate(() => document.activeElement?.textContent?.trim());
+check(second === "Talk to Knot", `voice is the second tab stop (got "${second}")`);
+await p.keyboard.press("Enter");
+await p.waitForTimeout(600);
+check(
+  await p.getByRole("dialog", { name: /voice conversation/i }).isVisible().catch(() => false),
+  "and Enter opens it",
 );
 
 // The scroll track belongs to the window, not to a centred column.

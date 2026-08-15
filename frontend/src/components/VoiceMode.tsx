@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { speak, stopSpeaking, useSpeechInput } from "@/lib/speech";
+import {
+  SPEECH_LANGS,
+  setSpeechLang,
+  speak,
+  stopSpeaking,
+  useSpeechInput,
+  useSpeechLang,
+} from "@/lib/speech";
 import { RealtimeSession, type RealtimeState } from "@/lib/realtime";
 import { authHeadersForRealtime } from "@/lib/api";
 import Button from "@/components/ui/Button";
@@ -40,6 +47,7 @@ export default function VoiceMode({
   const silentRoundsRef = useRef(0);
   const interruptedRef = useRef(false);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const speechLang = useSpeechLang();
 
   const micRef = useRef<{ start: () => void } | null>(null);
   const begin = useCallback(() => {
@@ -275,6 +283,23 @@ export default function VoiceMode({
             </button>
           ))}
         </div>
+        {engine === "device" && (
+          <label className="ml-2 flex items-center gap-1.5 text-[11px] text-ink-secondary">
+            <span className="sr-only">Speech language</span>
+            <select
+              value={speechLang}
+              onChange={(e) => setSpeechLang(e.target.value)}
+              className="rounded-full border border-line bg-surface-card px-2 py-1 text-xs text-ink-secondary outline-none"
+              title="Language for on-device speech. Live voice detects it for you."
+            >
+              {SPEECH_LANGS.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <Button onClick={onClose} aria-label="Exit voice mode">
           <span className="inline-flex items-center gap-1.5">
             <Icon as={X} size={13} />

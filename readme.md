@@ -1,15 +1,65 @@
 # Knot — money you can just talk about
 
-You tie a knot so you don't forget. Talk to it like a person: *"lent Priya ₹500 for lunch"*,
-*"paid 12,000 rent, split three ways"*, *"did Priya pay me back yet?"*. Every money statement becomes a balanced double-entry
-transaction committed atomically, while the people, habits, and rules of your financial life
-become durable agent memory — recalled by meaning, not exact match.
-
-Built for the [CockroachDB × AWS Hackathon: Build with Agentic Memory](https://cockroachdb-ai.devpost.com/).
+Say what happened. Knot turns a plain sentence into real double-entry
+accounting, remembers the people and rules behind it, and can read the whole
+thing back to you — with the screen off.
 
 **Live:** [frontend-flame-chi-lahigc424k.vercel.app](https://frontend-flame-chi-lahigc424k.vercel.app)
 · API on AWS App Runner in `ap-south-1`
 ([health](https://jmm87vpt23.ap-south-1.awsapprunner.com/healthz))
+· Built for the [CockroachDB × AWS Hackathon](https://cockroachdb-ai.devpost.com/)
+
+## What it does
+
+- **Talk or type** — *"chai 15"*, *"lent Priya 500 for lunch"*, *"paid 12,000
+  rent split three ways"*. Every sentence becomes a balanced journal entry.
+- **Track investments & SIPs** — units, weighted-average cost, mark-to-market,
+  realised and unrealised gains. A SIP is savings, never "spending".
+- **Track debt & EMIs** — principal split from interest every month, with the
+  schedule re-derived from the ledger rather than stored.
+- **Lending between people** — lent, borrowed, settled, repaid, per person.
+- **Monthly limits judged by pace** — 60% spent on the 5th is a warning; on the
+  25th it is fine.
+- **Recurring money** — salary, rent, subscriptions post themselves on their
+  dates.
+- **Cash tracking** — withdrawals are transfers, not spending, and what is left
+  unaccounted is visible.
+- **Insights** — a half-year spending heatmap, safe-to-spend until payday,
+  category and group breakdowns, merchant rhythm. Every number computed by SQL.
+- **Agentic memory, four stores** — working, episodic, semantic, procedural.
+  Teach a rule once and it applies forever; corrections supersede rather than
+  duplicate; every reply shows which memories it used.
+- **Rollbacks** — a correction is a reversing entry. Nothing is ever deleted.
+- **A ledger that cannot drift** — serializable isolation, balances always
+  derived, an invariant checked live and provable in the built-in race demo.
+- **Multi-currency display** — the books stay in rupees; the screen *and the
+  voice* follow whatever unit you choose.
+
+## Accessible by design
+
+Voice is not a shortcut bolted onto a dashboard — it is a complete second way
+to use the product, which is what makes the app usable without sight.
+
+- **The agent reads every dashboard aloud** — net worth, safe-to-spend, limits,
+  debt, investments, cash, "what changed". Same SQL the screen renders, so what
+  you hear and what you see cannot disagree.
+- **Two keystrokes to talk, from any page** — `Tab`, `Tab`, `Enter`. No mouse,
+  no hunting for a button, and no single-letter shortcut (screen readers
+  capture those in browse mode, so they would reach sighted users only).
+- **Live voice is multilingual** — speak in your language and it answers in it.
+  Free on-device voice defaults to English.
+- **Screen-reader first** — polite live regions announce replies and page
+  changes, a skip link, real landmarks, per-route page titles, `aria-current`,
+  focus that enters and leaves the voice overlay correctly.
+- **Colour is never the only signal** — every amount carries its sign, every
+  status carries words.
+- **WCAG-conscious palette** — contrast checked against every surface in both
+  themes, and a focus ring that is visible in light mode.
+- **Reduced motion honoured** — including the JavaScript-driven scrolling that
+  a CSS media query cannot reach.
+- **Enforced, not asserted** — the full `jsx-a11y` rule set plus seven grep
+  gates run on every change, and the end-to-end suite asserts focus retention,
+  the live region and the skip link.
 
 ## Why CockroachDB
 
