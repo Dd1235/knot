@@ -27,8 +27,10 @@
 
   --ink-primary: #f5f1e8;
   --ink-secondary: #b5ad9f;
-  /* Decorative only by policy (4.3:1 on card) — placeholders, rules. */
-  --ink-muted: #8a847c;
+  /* Was 4.26:1 on card and 3.29:1 on raised — below AA everywhere it carried
+     real text (categories, loan rates, the heatmap legend). Now >=4.77:1 on
+     every surface, so it is legible as well as quiet. */
+  --ink-muted: #a8a197;
   /* Elevation. On a dark surface a drop shadow alone does almost nothing —
      the top highlight is what actually makes an edge read as lifted. */
   --elevation: 0 1px 0 0 rgb(255 255 255 / 0.045) inset, 0 1px 2px rgb(0 0 0 / 0.5),
@@ -37,6 +39,10 @@
 
   --brand: #e0a93a;
   --brand-ink: #e0a93a;
+  /* The focus ring splits off --brand for the same reason --brand-ink did:
+     #e0a93a is 1.98:1 on the light surface, and WCAG 2.4.11 needs 3:1. Gold
+     works on the dark ground (5.75:1 at worst); light borrows --brand-ink. */
+  --focus-ring: #e0a93a;
   --brand-soft: rgba(224, 169, 58, 0.12);
   --brand-line: rgba(224, 169, 58, 0.35);
 
@@ -97,13 +103,14 @@
 
     --ink-primary: #1a1712;
     --ink-secondary: #5c5548;
-    --ink-muted: #8a8172;
+    --ink-muted: #6f6759;
     --elevation: 0 1px 2px rgb(60 46 20 / 0.06), 0 6px 16px -8px rgb(60 46 20 / 0.10);
     --ink-on-brand: #1a1712;
 
     /* Gold splits: #e0a93a is 2.12:1 on white — fills only, never text. */
     --brand: #e0a93a;
     --brand-ink: #8a6410;
+    --focus-ring: #8a6410;
     --brand-soft: rgba(224, 169, 58, 0.16);
     --brand-line: rgba(138, 100, 16, 0.32);
 
@@ -153,12 +160,13 @@
 
   --ink-primary: #1a1712;
   --ink-secondary: #5c5548;
-  --ink-muted: #8a8172;
+  --ink-muted: #6f6759;
   --elevation: 0 1px 2px rgb(60 46 20 / 0.06), 0 6px 16px -8px rgb(60 46 20 / 0.10);
   --ink-on-brand: #1a1712;
 
   --brand: #e0a93a;
   --brand-ink: #8a6410;
+  --focus-ring: #8a6410;
   --brand-soft: rgba(224, 169, 58, 0.16);
   --brand-line: rgba(138, 100, 16, 0.32);
 
@@ -207,13 +215,17 @@
 
   --ink-primary: #f5f1e8;
   --ink-secondary: #b5ad9f;
-  --ink-muted: #8a847c;
+  --ink-muted: #a8a197;
   --elevation: 0 1px 0 0 rgb(255 255 255 / 0.045) inset, 0 1px 2px rgb(0 0 0 / 0.5),
     0 6px 16px -6px rgb(0 0 0 / 0.55);
   --ink-on-brand: #1a1712;
 
   --brand: #e0a93a;
   --brand-ink: #e0a93a;
+  /* The focus ring splits off --brand for the same reason --brand-ink did:
+     #e0a93a is 1.98:1 on the light surface, and WCAG 2.4.11 needs 3:1. Gold
+     works on the dark ground (5.75:1 at worst); light borrows --brand-ink. */
+  --focus-ring: #e0a93a;
   --brand-soft: rgba(224, 169, 58, 0.12);
   --brand-line: rgba(224, 169, 58, 0.35);
 
@@ -269,6 +281,7 @@
   --color-brand-ink: var(--brand-ink);
   --color-brand-soft: var(--brand-soft);
   --color-brand-line: var(--brand-line);
+  --color-focus-ring: var(--focus-ring);
 
   --color-positive: var(--positive);
   --color-positive-soft: var(--positive-soft);
@@ -322,7 +335,7 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--brand);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
 
@@ -375,7 +388,10 @@
   & path {
     stroke-dasharray: 64;
     stroke-dashoffset: 64;
-    animation: knot-tie 1.1s ease-in-out infinite alternate;
+    /* `forwards` matters for reduced motion: the kill switch collapses this
+       to 0.01ms/1 iteration, and without a fill the path snaps back to
+       dashoffset 64 — an empty box where the thinking mark should be. */
+    animation: knot-tie 1.1s ease-in-out infinite alternate forwards;
   }
 }
 
