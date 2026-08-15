@@ -113,7 +113,7 @@ Honest status: on synthetic data the rate sits at ~41% rather than the 15–25% 
 ### D27. Identity on a transaction row is a glyph, not a hue
 The coloured spine was replaced by a category glyph. Shape survives greyscale, colour blindness and forced-colours mode, and stays legible at the twelfth category, where hue #12 of a categorical ramp does not. The group tint stays behind the glyph at 16% so it never competes with the amount.
 
-Rows under ₹100 render lighter and tighter. 76% of UPI payments land there; if the chai shouts as loudly as the rent, nothing reads.
+Rows under ₹100 render lighter and tighter. Indian UPI is dominated by small payments — 76% are under ₹500 — so if the chai shouts as loudly as the rent, nothing reads. ₹100 is where a payment stops being an event and becomes the texture of a day.
 
 Two things were removed for the same reason: a `voice` badge on every row (speech is how this app is meant to be used, so badging all of them marks none of them) and a `raw_input` echo that repeated the row back — "saloon 375" beside a row already saying saloon and ₹375 — then truncated mid-word.
 

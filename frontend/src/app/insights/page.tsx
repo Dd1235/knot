@@ -188,7 +188,7 @@ function SafeToSpendCard({ data }: { data: SafeToSpend | null }) {
   );
 }
 
-/** Merchants ranked by how OFTEN, not how much. 76% of UPI payments are under
+/** Merchants ranked by how OFTEN, not how much. 76% of UPI transactions are under
  * ₹500 — sorting by rupees renders the user's actual daily life invisible. */
 function FrequencyCard({ rhythm }: { rhythm: Rhythm | null }) {
   if (!rhythm) return <SkeletonCard className="h-56" />;

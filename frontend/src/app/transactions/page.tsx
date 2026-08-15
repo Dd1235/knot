@@ -44,7 +44,8 @@ const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
 /** Below this, a row is part of the background texture of a day rather than
- * an event. 76% of UPI payments land here, so if they all shout, nothing does. */
+ * an event. Most UPI payments are small — 76% are under ₹500 — so if every
+ * one of them shouts, nothing does. */
 const MINOR_AMOUNT = 100;
 
 /** `recurring` writes "Netflix (auto, 2026-07)" into the description. That is
