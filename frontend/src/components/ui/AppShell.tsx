@@ -88,10 +88,14 @@ export default function AppShell({
 }
 
 /** Page titles left the header when it went global — they are content now,
- * and at content scale: the header names the app, this names the page. */
+ * and at content scale: the header names the app, this names the page. They
+ * speak the wordmark's serif — the one brand echo inside the product. The
+ * data below them stays in the sans. */
 export function PageTitle({ children }: { children: ReactNode }) {
   return (
-    <h1 className="text-[32px] font-bold leading-tight tracking-[-0.02em]">{children}</h1>
+    <h1 className="font-display text-[34px] font-normal leading-tight tracking-[0.005em]">
+      {children}
+    </h1>
   );
 }
 

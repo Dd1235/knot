@@ -52,7 +52,9 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-7">
         <div className="flex flex-col items-center gap-3 text-center">
           <Logo size={44} className="text-brand-ink" title="Knot" />
-          <h1 className="text-3xl font-semibold tracking-tight">Knot</h1>
+          {/* The brand name in the brand's face — this was the one place it
+              was still set in the sans. */}
+          <h1 className="font-display text-[34px] leading-none tracking-[0.005em]">Knot</h1>
           <p className="text-sm text-ink-secondary">Money you can just talk about.</p>
         </div>
 
