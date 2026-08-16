@@ -94,3 +94,42 @@ async def test_restating_a_limit_replaces_it(user):
     rows = (await limits.status(user))["limits"]
     assert len(rows) == 1
     assert Decimal(rows[0]["limit"]) == Decimal("8000")
+
+
+async def test_a_limit_on_something_that_is_not_a_category_is_refused(user):
+    """"limit books to 5000" used to succeed and then sit at ₹0 forever.
+
+    There is no `books` category — books land in education or shopping — so the
+    limit matched nothing, every month, and looked like the ledger had stopped
+    counting. A refusal the agent can explain beats a number that quietly lies.
+    """
+    with pytest.raises(LedgerError) as exc:
+        await limits.set_limit(user, Decimal("5000"), scope="category", target="books")
+    assert "not a spending category" in str(exc.value)
+
+    # A near-miss gets pointed at the real one rather than just rejected.
+    with pytest.raises(LedgerError) as exc:
+        await limits.set_limit(user, Decimal("5000"), scope="category", target="grocery")
+    assert "groceries" in str(exc.value)
+
+    # A category limit on a real category still works.
+    row = await limits.set_limit(user, Decimal("5000"), scope="category", target="education")
+    assert row["target"] == "education"
+
+
+async def test_a_group_limit_must_name_a_real_group(user):
+    """`groceries` is a category, not a group — capping it as a group would
+    also have matched nothing."""
+    with pytest.raises(LedgerError) as exc:
+        await limits.set_limit(user, Decimal("5000"), scope="group", target="groceries")
+    assert "not a spending group" in str(exc.value)
+
+    # savings_invest is a real group but excluded from the spend query, so a
+    # limit on it could never be approached.
+    with pytest.raises(LedgerError):
+        await limits.set_limit(user, Decimal("5000"), scope="group", target="savings_invest")
+
+    for good in ("essentials", "discretionary", "debt"):
+        assert (await limits.set_limit(user, Decimal("9000"), scope="group", target=good))[
+            "target"
+        ] == good

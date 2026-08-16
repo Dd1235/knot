@@ -14,6 +14,7 @@ No AI anywhere in here. It is arithmetic over a SUM, which means it is
 instant, free, and identical every time it runs.
 """
 
+import difflib
 from calendar import monthrange
 from datetime import date, datetime, time
 from decimal import Decimal
@@ -24,12 +25,32 @@ from psycopg.rows import dict_row
 
 from app.db.pool import pool
 from app.db.tx import run_serializable
+from app.ledger import categories
 from app.ledger.service import LedgerError, ensure_user
 
 IST = ZoneInfo("Asia/Kolkata")
 TWO_PLACES = Decimal("0.01")
 
 SCOPES = {"total", "group", "category"}
+
+# Groups a spending limit can name. `savings_invest` is excluded because the
+# spend query excludes it — investing is not spending, and a limit that could
+# never be approached is a limit that lies. `income`, `transfer` and `other`
+# are not things a user caps.
+LIMITABLE_GROUPS = frozenset({"essentials", "discretionary", "debt"})
+
+
+def _nearest_categories(target: str, limit: int = 3) -> list[str]:
+    """Real categories a mistyped or invented target most likely meant.
+
+    Substring match first — "book" should surface nothing but "grocery" should
+    surface "groceries" — then difflib for genuine near-misses.
+    """
+    hits = [c for c in categories.ALL_CATEGORIES if target in c or c in target]
+    if not hits:
+        hits = difflib.get_close_matches(target, categories.ALL_CATEGORIES, n=limit, cutoff=0.7)
+    return hits[:limit]
+
 
 # Ahead of the calendar by this much before anything is said. Under it, being
 # "over pace" is just what an uneven month looks like.
@@ -64,6 +85,24 @@ async def set_limit(
     target = "" if scope == "total" else (target or "").strip().lower()
     if scope != "total" and not target:
         raise LedgerError(f"a {scope} limit needs to say which {scope}")
+    # An unvalidated target is worse than a rejected one. "limit books to 5000"
+    # used to create a cap on a category no transaction can ever carry — books
+    # get filed under education or shopping — so it sat at ₹0 spent forever and
+    # looked like the ledger was failing to count. Name the real options instead.
+    if scope == "category" and target not in categories.ALL_CATEGORIES:
+        near = _nearest_categories(target)
+        hint = f" Closest: {', '.join(near)}." if near else ""
+        raise LedgerError(
+            f"'{target}' is not a spending category, so a limit on it would never "
+            f"match anything.{hint} Ask what categories exist, or cap a group "
+            "instead — essentials, discretionary or debt."
+        )
+    if scope == "group" and target not in LIMITABLE_GROUPS:
+        raise LedgerError(
+            f"'{target}' is not a spending group — use one of "
+            f"{', '.join(sorted(LIMITABLE_GROUPS))}. "
+            f"If you meant a single category, say category instead."
+        )
 
     async def _fn(conn: AsyncConnection) -> dict:
         user_id = await ensure_user(conn, user_handle)
