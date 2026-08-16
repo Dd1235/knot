@@ -29,6 +29,10 @@ thing back to you — with the screen off.
 - **Agentic memory, four stores** — working, episodic, semantic, procedural.
   Teach a rule once and it applies forever; corrections supersede rather than
   duplicate; every reply shows which memories it used.
+- **Every entry can explain itself** — press `why` on any row to see what you
+  said, which memories were recalled, which tool ran with which arguments, and
+  the legs it posted. Provenance as typed columns in the same database, not a
+  second graph store to keep in sync.
 - **Rollbacks** — a correction is a reversing entry. Nothing is ever deleted.
 - **A ledger that cannot drift** — serializable isolation, balances always
   derived, an invariant checked live and provable in the built-in race demo.
@@ -53,6 +57,9 @@ to use the product, which is what makes the app usable without sight.
   focus that enters and leaves the voice overlay correctly.
 - **Colour is never the only signal** — every amount carries its sign, every
   status carries words.
+- **Provenance is keyboard-reachable** — `why` on a ledger row is a real button
+  with `aria-expanded`, not a hover-only affordance, and its panel announces
+  when it loads.
 - **WCAG-conscious palette** — contrast checked against every surface in both
   themes, and a focus ring that is visible in light mode.
 - **Reduced motion honoured** — including the JavaScript-driven scrolling that
@@ -198,7 +205,31 @@ The ledger validates independently of the model. These are refusals, not crashes
 | `/memory` → Actions | every tool call the agent ever made, with latency in ms |
 | `/sessions` | voice and text in one timeline. An expired transcript says so — that's Row-Level TTL, visible in the product |
 | `/insights` | the densest page: heatmap, safe-to-spend, limits with a today-marker, merchant rhythm, what-I-notice |
-| `/transactions` | search, sticky day headers, category glyphs, `auto` badges, annotations |
+| `/transactions` | search, sticky day headers, category glyphs, `auto` badges, annotations — and **`why` on any row** (see below) |
+
+</details>
+
+<details>
+<summary><b>Ask any entry why it exists</b></summary>
+
+Hover or tab to any row on `/transactions` and press **`why`**. It expands into
+the derivation chain, assembled from records the system already wrote:
+
+| Step | What it shows |
+|---|---|
+| **you said** | your own words, verbatim — including for entries recorded by voice |
+| **recalled** | the rules, facts and episodes retrieved for that turn, with their scores |
+| **ran** | the tool that executed, its exact arguments, and its latency |
+| **posted** | every leg, and their sum |
+
+The demo worth doing: teach `rent is always split 3 ways with Kiran and Meera`,
+start a **new conversation**, then say `paid 12000 rent`. Open `why` on the row
+and the `ran` step reads `split_with: ["Kiran","Meera"]` — two names that appear
+nowhere in the sentence. The `recalled` step shows where they came from.
+
+This is a graph — utterance → rule → tool call → legs — and it is typed columns
+and indexed joins in the same serializable database as the money, not a second
+system kept in sync.
 
 </details>
 
@@ -394,6 +425,9 @@ Small decisions that took real work and are invisible until pointed at:
   Argon2 hash so it costs the same as a wrong password.
 - **Rate limiting is keyed per (caller, path)**, so exhausting `/auth/login`
   cannot lock you out of `/chat`.
+- **Every tool call is audit-logged with its latency**, visible on `/memory` →
+  Actions — expand one to see the arguments it was given and the result it
+  returned.
 
 ## Stack
 
