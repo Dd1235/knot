@@ -96,3 +96,71 @@ async def test_posting_twice_does_not_pay_twice(user):
     outstanding = await loans.outstanding_for(user, loans.account_for("Car Loan"))
     await loans.post_due(user, today=on)
     assert await loans.outstanding_for(user, loans.account_for("Car Loan")) == outstanding
+
+
+async def test_an_emi_is_claimed_against_safe_to_spend(user):
+    """An EMI is a commitment that happens to live in another table.
+
+    It was missing from `upcoming()`, which meant three things at once: no EMI
+    on the commitment calendar, none in "due next", and — the one that actually
+    cost the user money — `claimed_before_income` never subtracted it, so
+    safe-to-spend reported more available cash than existed.
+
+    No salary here on purpose: with no next payday, everything upcoming is
+    claimed, so the arithmetic is the same whatever today's date is. (With a
+    payday, only commitments landing before it constrain today — an EMI due
+    after the next salary correctly does not.)
+    """
+    from app.agent.tools.money_tools import set_opening_balance_for
+    from app.ledger import analytics, recurring
+
+    await set_opening_balance_for(user, Decimal("100000"), "bank")
+    before = await analytics.safe_to_spend(user)
+
+    await loans.add_loan(
+        user, "car loan", Decimal("500000"), Decimal("9"), 60, due_day=5,
+    )
+    after = await analytics.safe_to_spend(user)
+    emi = Decimal((await loans.list_loans(user))["loans"][0]["emi"])
+    assert emi > 0
+
+    ahead = await recurring.upcoming(user)
+    car = [e for e in ahead["outgoing"] if e["name"] == "car loan"]
+    assert car, f"the EMI never reached upcoming: {ahead['outgoing']}"
+    assert car[0]["kind"] == "emi"
+    assert Decimal(car[0]["amount"]) == emi
+
+    # The money the EMI claims stops being offered as spendable. (Available
+    # rises overall, because taking a loan also puts the principal in the bank —
+    # what matters is that the EMI is now subtracted from it at all.)
+    assert Decimal(after["claimed"]) == Decimal(before["claimed"]) + emi
+    assert Decimal(after["available"]) == Decimal(after["liquid"]) - Decimal(after["claimed"])
+
+    # And a subscription still reads as a subscription, not as debt — the
+    # calendar draws them differently and needs to be able to tell.
+    await recurring.upsert_commitment(user, "Netflix", Decimal("649"), due_day=5)
+    again = await recurring.upcoming(user)
+    assert next(e for e in again["outgoing"] if e["name"] == "Netflix")["kind"] == "recurring"
+
+
+async def test_a_cleared_loan_stops_claiming_money(user):
+    """Outstanding zero means the EMI is over; it must leave the calendar."""
+    from app.ledger import recurring
+
+    await loans.add_loan(
+        user, "tiny loan", Decimal("1000"), Decimal("0"), 1, due_day=5,
+    )
+    assert any(e["kind"] == "emi" for e in (await recurring.upcoming(user))["outgoing"])
+
+    # Pay it off entirely, so outstanding drops to zero.
+    row = (await loans.list_loans(user))["loans"][0]
+    await service.post_transaction(
+        user,
+        "clear the loan",
+        [
+            service.LegSpec(row["account_name"], Decimal(row["outstanding"])),
+            service.LegSpec("cash", -Decimal(row["outstanding"])),
+        ],
+        category="loan",
+    )
+    assert not any(e["kind"] == "emi" for e in (await recurring.upcoming(user))["outgoing"])

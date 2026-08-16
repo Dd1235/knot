@@ -17,7 +17,7 @@ from psycopg.rows import dict_row
 
 from app.db.pool import pool
 from app.db.tx import run_serializable
-from app.ledger import categories, service
+from app.ledger import categories, loans, service
 from app.ledger.service import LedgerError, LegSpec, ensure_user
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -357,8 +357,31 @@ async def upcoming(user_handle: str, horizon_days: int = 45) -> dict:
             "category": c["category"],
             "due_on": due.isoformat(),
             "in_days": (due - today).days,
+            "kind": "recurring",
         }
         (incoming if c["direction"] == "received" else outgoing).append(entry)
+
+    # An EMI is a commitment that happens to live in another table. Leaving
+    # loans out of here meant they were missing from the calendar and from
+    # "due next" — but worse, `claimed_before_income` below never counted them,
+    # so safe-to-spend told anyone with a loan they had more money than they
+    # did, every month, right up until the EMI posted itself.
+    for loan in (await loans.list_loans(user_handle))["loans"]:
+        if not loan["active"] or Decimal(loan["outstanding"]) <= 0:
+            continue
+        due = _next_occurrence("monthly", loan["due_day"], today)
+        if due > horizon:
+            continue
+        outgoing.append(
+            {
+                "name": loan["name"],
+                "amount": loan["emi"],
+                "category": "loan",
+                "due_on": due.isoformat(),
+                "in_days": (due - today).days,
+                "kind": "emi",
+            }
+        )
 
     outgoing.sort(key=lambda e: e["due_on"])
     incoming.sort(key=lambda e: e["due_on"])
