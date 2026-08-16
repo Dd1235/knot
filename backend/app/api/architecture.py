@@ -6,9 +6,12 @@ architecture. The version string, the vector indexes and the TTL settings are
 whatever the database says they are right now.
 """
 
+import time
+
 from fastapi import APIRouter, Depends
 
 from app.auth.deps import current_user
+from app.db import tx
 from app.db.pool import pool
 
 router = APIRouter(prefix="/architecture", tags=["architecture"])
@@ -28,7 +31,18 @@ TTL_TABLES = ("conversation_turns", "agent_actions", "idempotency_keys")
 @router.get("/stack")
 async def stack(x_user: str = Depends(current_user)) -> dict:
     async with pool().connection() as conn:
+        # One trivial query, timed on its own — the honest "how far away is the
+        # database" number. Timing the whole endpoint would measure this page's
+        # dozen introspection queries and call it a round trip.
+        started = time.perf_counter()
         version = (await (await conn.execute("SELECT version()")).fetchone())[0]
+        roundtrip_ms = round((time.perf_counter() - started) * 1000, 1)
+
+        # Where this cluster actually is, asked of the cluster. The region is
+        # the one AWS fact that interlocks with the isolation design: a
+        # serializable ledger reads inside the write, so the round trip below
+        # sits on the critical path of every request and never amortises away.
+        region = (await (await conn.execute("SELECT gateway_region()")).fetchone())[0]
 
         # Vector indexes, by name, straight from the catalog. These are what
         # make similarity search a SQL operation inside the same transaction
@@ -105,6 +119,12 @@ async def stack(x_user: str = Depends(current_user)) -> dict:
 
     return {
         "version": version,
+        "region": region,
+        # Measured just now, not advertised.
+        "roundtrip_ms": roundtrip_ms,
+        # 40001 conflicts this process has detected and retried. Zero is the
+        # honest reading on a quiet instance; the race demo moves it.
+        "retries_handled": tx.retry_count,
         "vector_indexes": vector_indexes,
         "ttl": ttl,
         "memory_counts": counts,
