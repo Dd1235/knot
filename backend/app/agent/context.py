@@ -17,6 +17,32 @@ async def _empty_list() -> list[dict]:
 
 FACT_SCORE_FLOOR = 0.12
 QUESTION_HINTS = ("did ", "when ", "how much", "what ", "who ", "do i", "have i", "?")
+# Recording a spend is short and declarative; asking about one is neither. Used
+# only for messages these English hints cannot judge — see _wants_episodes.
+LONG_MESSAGE_WORDS = 6
+
+
+def _wants_episodes(message: str) -> bool:
+    """Whether to spend an episodic lookup on this turn.
+
+    The point of the gate is to keep a vector search off every "chai 15", not
+    to keep it off every language. The hint list is English, so on its own it
+    answered False for every question asked in Hindi, Tamil or Telugu — the
+    users we specifically claim to support — and episodic recall silently never
+    ran for them.
+
+    So: English hints stay the fast path, and anything they cannot read falls
+    back to shape. "?" is in the hints already and is near-universal; a message
+    long enough to be more than a logged amount is worth the lookup.
+    """
+    lowered = message.lower()
+    if any(hint in lowered for hint in QUESTION_HINTS):
+        return True
+    # No Latin letters to match hints against — judge by shape instead, so a
+    # non-English question is not silently treated as a statement.
+    if not any("a" <= ch <= "z" for ch in lowered):
+        return len(message.split()) >= 3
+    return len(message.split()) >= LONG_MESSAGE_WORDS
 
 
 @dataclass
@@ -29,7 +55,7 @@ class AssembledContext:
 async def assemble(user_handle: str, user_message: str) -> AssembledContext:
     query_vector = await embed_one(user_message)
 
-    is_question = any(hint in user_message.lower() for hint in QUESTION_HINTS)
+    is_question = _wants_episodes(user_message)
     rules, all_facts, episodes = await asyncio.gather(
         procedural.match(user_handle, query_vector, k=3),
         semantic.search(user_handle, query_vector, k=5),
