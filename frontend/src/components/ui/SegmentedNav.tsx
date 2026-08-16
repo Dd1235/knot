@@ -19,19 +19,19 @@ export default function SegmentedNav<T extends string>({
   className?: string;
 }) {
   return (
-    /* A div, not a nav: role="tablist" overrides the element's implicit role,
-       so a <nav> here announced as a tablist and the navigation landmark was
-       silently lost. These are filters, not navigation, so the landmark was
-       never the right claim anyway. */
-    <div role="tablist" aria-label={label} className={`flex gap-1 ${className}`}>
+    /* A group of pressed buttons, not a tablist. These are filters — they
+       control no tabpanel, and they were announced as tabs while behaving as
+       buttons: no aria-controls, no roving tabindex, arrow keys inert. A
+       promise the widget could not keep is worse than a plain button.
+       Also a div, not a nav: an overriding role silently costs the landmark. */
+    <div role="group" aria-label={label} className={`flex gap-1 ${className}`}>
       {items.map((item) => {
         const active = item.id === value;
         return (
           <button
             key={item.id}
             type="button"
-            role="tab"
-            aria-selected={active}
+            aria-pressed={active}
             onClick={() => onChange(item.id)}
             className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
               active

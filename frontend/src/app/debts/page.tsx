@@ -48,10 +48,10 @@ function LoanCard({ loan }: { loan: Loan }) {
   return (
     <Card className={cleared ? "opacity-60" : ""}>
       <div className="mb-2 flex items-baseline justify-between gap-3">
-        <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+        <h2 className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
           <Icon as={Landmark} size={14} className="shrink-0 text-ink-muted" />
           <span className="truncate">{loan.name}</span>
-        </h3>
+        </h2>
         <span className="shrink-0 text-[11px] text-ink-muted">
           {/* DECIMAL(6,3) arrives as "11.500"; nobody writes a rate that way. */}
           {Number(loan.annual_rate)}% · day {loan.due_day}

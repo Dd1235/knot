@@ -177,6 +177,15 @@ export default function SpendHeatmap({
         </p>
       </div>
 
+      {/* Persistent, so the repeated polite update actually lands. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {shown
+          ? `${
+              Number(shown.spend) > 0 ? INR.format(Number(shown.spend)) : "Nothing spent"
+            } on ${shown.date}`
+          : ""}
+      </p>
+
       <div ref={scrollRef} className="overflow-x-auto">
         <div className="flex gap-[3px]" style={{ minWidth: "min-content" }}>
           {/* Weekday gutter */}
@@ -223,6 +232,7 @@ export default function SpendHeatmap({
                         }`}
                         onMouseEnter={() => !cell.future && setHover(cell)}
                         onMouseLeave={() => setHover(null)}
+                        onTouchStart={() => !cell.future && setHover(cell)}
                         className="size-[11px] rounded-[2px] transition-transform hover:scale-125"
                         style={{
                           background: cell.future ? "transparent" : HEAT[cell.level],
