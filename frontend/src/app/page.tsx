@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Logo, { Wordmark } from "@/components/ui/Logo";
+import { Wordmark } from "@/components/ui/Logo";
 import { buttonClass } from "@/components/ui/Button";
 import Pill from "@/components/ui/Pill";
 
@@ -114,6 +114,147 @@ function MiniMemory() {
   );
 }
 
+/* 14 days of plausible daily spend for the window's bar chart. Deterministic
+ * for the same reason as HEAT; the tallest bar is the one that gets a label,
+ * exactly like the real DailySpendChart. */
+const DAILY = [22, 38, 16, 52, 30, 74, 96, 24, 40, 18, 58, 34, 66, 44];
+
+function LimitRow({
+  label,
+  spent,
+  share,
+  tone,
+  note,
+}: {
+  label: string;
+  spent: string;
+  share: number;
+  tone: string;
+  note: string;
+}) {
+  /* The real limits bar, verbatim: track, verdict-coloured fill, and the
+   * elapsed-day tick. Being left of that line is the whole definition of on
+   * track — the landing page should teach that reading too. */
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-sm">{label}</p>
+        <p className="text-[11px] tabular-nums text-ink-secondary">{spent}</p>
+      </div>
+      <div className="relative mt-1 h-2 rounded-full bg-surface-raised">
+        <div
+          className="h-2 rounded-full"
+          style={{ width: `${share}%`, backgroundColor: tone }}
+        />
+        <span
+          aria-hidden
+          className="absolute top-[-2px] h-3 w-px bg-ink-secondary"
+          style={{ left: "55%" }}
+        />
+      </div>
+      <p className="mt-1 text-[11px] text-ink-secondary">{note}</p>
+    </div>
+  );
+}
+
+/* A window onto the product, composed from the product's own pieces — not a
+ * screenshot that goes stale, and not an empty promise where a video will one
+ * day be. Swap this body for the demo <iframe> when the video is cut. */
+function ProductWindow() {
+  return (
+    <div className="elevated overflow-hidden rounded-2xl border border-line bg-surface-card">
+      {/* Chrome. The address is the one the app actually serves. The gold
+          hairline lives here — it cannot share the frame with `elevated`,
+          since both utilities are box-shadows and one would win silently. */}
+      <div className="hairline-gold relative flex items-center border-b border-line px-4 py-2.5">
+        <div aria-hidden className="flex gap-1.5">
+          <span className="size-2 rounded-full bg-surface-raised" />
+          <span className="size-2 rounded-full bg-surface-raised" />
+          <span className="size-2 rounded-full bg-brand/60" />
+        </div>
+        <p className="absolute inset-x-0 text-center font-mono text-[11px] text-ink-muted">
+          knot.app/insights
+        </p>
+      </div>
+
+      <div className="grid gap-4 p-4 md:grid-cols-5 md:p-5">
+        <div className="space-y-4 md:col-span-2">
+          {/* Safe to spend: the number the whole product exists to answer. */}
+          <div className="hairline-gold rounded-xl border border-brand-line bg-brand-soft p-4">
+            <p className="eyebrow text-brand-ink">Safe to spend</p>
+            <p className="mt-2 text-[38px] font-semibold leading-none tracking-tight tabular-nums">
+              ₹14,250
+            </p>
+            <p className="mt-2 text-[11px] text-ink-secondary">
+              until salary in 9 days · ₹1,583/day
+            </p>
+          </div>
+          <div className="rounded-xl border border-line p-4">
+            <p className="eyebrow text-ink-secondary">Monthly limits</p>
+            <div className="mt-3 space-y-4">
+              <LimitRow
+                label="food"
+                spent="₹6,200 of ₹10,000"
+                share={62}
+                tone="var(--positive)"
+                note="₹3,800 left · 14 days"
+              />
+              <LimitRow
+                label="shopping"
+                spent="₹13,900 of ₹15,000"
+                share={93}
+                tone="var(--warning)"
+                note="on for ₹25,300 — ahead of the month"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4 md:col-span-3">
+          {/* Daily spend: thin bars, one direct label, like the real chart. */}
+          <div className="rounded-xl border border-line p-4">
+            <p className="eyebrow text-ink-secondary">Daily spend · 14 days</p>
+            <div className="mt-4 flex h-28 items-end gap-1.5">
+              {DAILY.map((height, i) => (
+                <div key={i} className="relative flex-1">
+                  {height === 96 && (
+                    <p className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] tabular-nums text-ink-secondary">
+                      ₹4.2k
+                    </p>
+                  )}
+                  <div
+                    className={`rounded-t-[3px] ${height === 96 ? "bg-heat-4" : "bg-heat-2"}`}
+                    style={{ height: `${height}px` }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Due next: commitments post themselves on their dates. */}
+          <div className="rounded-xl border border-line p-4">
+            <p className="eyebrow text-ink-secondary">Due next</p>
+            <ul className="mt-3 divide-y divide-line">
+              {[
+                ["Netflix", "3d", "−₹649", "text-ink-primary"],
+                ["Rent", "9d", "−₹12,000", "text-ink-primary"],
+                ["Salary", "9d", "+₹95,000", "text-positive"],
+              ].map(([name, when, amount, toneClass]) => (
+                <li key={name} className="flex items-baseline justify-between py-2 text-sm">
+                  <span>{name}</span>
+                  <span className="flex items-baseline gap-3">
+                    <span className="text-[11px] text-ink-muted">{when}</span>
+                    <span className={`tabular-nums ${toneClass}`}>{amount}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MiniHeatmap() {
   return (
     <div className="elevated rounded-2xl border border-line bg-surface-card p-4">
@@ -200,15 +341,10 @@ export default function LandingPage() {
             <MiniChat />
           </section>
 
-          {/* Demo video — swap the placeholder for an <iframe> when it's cut */}
-          <section className="mb-20">
-            <div className="hairline-gold flex aspect-video w-full items-center justify-center rounded-2xl border border-line bg-surface-card">
-              <div className="text-center">
-                <Logo size={34} className="mx-auto text-brand-ink opacity-60" />
-                <p className="mt-3 text-sm text-ink-secondary">Demo video</p>
-                <p className="mt-1 text-xs text-ink-muted">Two minutes. Coming soon.</p>
-              </div>
-            </div>
+          {/* The product, in a window — swap ProductWindow's body for the demo
+              <iframe> when the video is cut. */}
+          <section className="pb-4">
+            <ProductWindow />
           </section>
 
           {/* Feature band: memory */}
