@@ -45,10 +45,12 @@ gate "no dark: variant" grep -rn 'dark:' "$S" --include='*.tsx'
 gate "no var() in SVG attributes" grep -rnE '(fill|stroke)="var\(' "$S"
 
 # 6. Money RENDERS go through <Money> so tabular figures are guaranteed.
-#    inr() survives only where a plain string is required (aria-label, confirm).
+#    inr() survives only where a plain string is required: an accessible name,
+#    a live-region announcement, or a native confirm — text for assistive tech,
+#    which is the one place a component cannot go.
 gate "inr() only inside Money or strings" sh -c \
   "grep -rn 'inr(' $S --include='*.tsx' \
-   | grep -v 'ui/Money.tsx' | grep -v 'aria-label' | grep -v 'window.confirm'"
+   | grep -v 'ui/Money.tsx' | grep -v 'aria-label' | grep -v 'aria-live' | grep -v 'window.confirm'"
 
 # 7. The old brand name is gone from the UI.
 # Scoped to components: "ledger" is also double-entry domain vocabulary.

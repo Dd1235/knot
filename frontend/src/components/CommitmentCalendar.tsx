@@ -95,33 +95,37 @@ export default function CommitmentCalendar({
           const isPicked = key === picked;
           const past = key < todayKey;
           const day = date.getDate();
+          /* A day with nothing due is not a control. Every cell used to be a
+             button whose handler was a no-op, which put 39 dead stops in the
+             keyboard path of one page — the calendar cost more Tab presses
+             than everything else on it combined. */
+          const Cell = events ? "button" : "div";
           return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setPicked(isPicked ? null : events ? key : null)}
-              aria-label={
-                events
-                  ? `${date.toLocaleDateString("en-IN", { day: "numeric", month: "long" })}: ${[
-                      ...events.out,
-                      ...events.in,
-                    ]
-                      .map((e) => e.name)
-                      .join(", ")}`
-                  : `${date.toLocaleDateString("en-IN", { day: "numeric", month: "long" })}, nothing due`
-              }
-              className={`flex aspect-square flex-col items-center justify-center rounded-md text-[11px] tabular-nums transition-colors ${
-                isPicked
-                  ? "bg-surface-raised text-ink-primary"
-                  : isToday
-                    ? "border border-brand-line text-ink-primary"
-                    : events
-                      ? "text-ink-primary hover:bg-surface-raised"
-                      : past
-                        ? "text-ink-muted/45"
-                        : "text-ink-muted"
-              }`}
-            >
+              <Cell
+                key={key}
+                {...(events
+                  ? {
+                      type: "button" as const,
+                      onClick: () => setPicked(isPicked ? null : key),
+                      "aria-label": `${date.toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "long",
+                      })}: ${[...events.out, ...events.in].map((e) => e.name).join(", ")}`,
+                      "aria-pressed": isPicked,
+                    }
+                  : { "aria-hidden": true })}
+                className={`flex aspect-square flex-col items-center justify-center rounded-md text-[11px] tabular-nums transition-colors ${
+                  isPicked
+                    ? "bg-surface-raised text-ink-primary"
+                    : isToday
+                      ? "border border-brand-line text-ink-primary"
+                      : events
+                        ? "text-ink-primary hover:bg-surface-raised"
+                        : past
+                          ? "text-ink-muted/45"
+                          : "text-ink-muted"
+                }`}
+              >
               {/* The 1st names its month, so a window spanning two of them
                   still reads unambiguously without a second header. */}
               {day === 1 ? date.toLocaleDateString("en-IN", { month: "short" }) : day}
@@ -149,9 +153,9 @@ export default function CommitmentCalendar({
                   />
                 ) : null}
               </span>
-            </button>
-          );
-        })}
+              </Cell>
+            );
+          })}
       </div>
 
       {shown ? (

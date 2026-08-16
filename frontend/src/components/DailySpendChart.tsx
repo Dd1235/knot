@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Money from "@/components/ui/Money";
 import { DailyFlow, inr } from "@/lib/api";
 
@@ -47,6 +47,7 @@ export default function DailySpendChart({
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [hover, setHover] = useState<number | null>(null);
+  const chartId = useId();
 
   useEffect(() => {
     const el = containerRef.current;
@@ -184,27 +185,53 @@ export default function DailySpendChart({
             </p>
           )}
 
-          {/* hover/tap layer — the hit target is the full column height */}
+          {/* Hover/tap layer. Pointer targets stay per-column, but the KEYBOARD
+              target is the group: ninety sibling buttons meant ninety Tab
+              presses to cross one chart, and at 90 days on a phone each was
+              under 3px wide. One stop, arrow keys to move, and the focused
+              day is announced through the status line below. */}
           {!allZero && n > 0 && (
             <div
-              className="absolute flex"
+              role="listbox"
+              tabIndex={0}
+              aria-label={`Daily spend, ${n} days. Use arrow keys to read each day.`}
+              aria-activedescendant={hover !== null ? `${chartId}-day-${hover}` : undefined}
+              className="absolute flex rounded-sm"
               style={{ left: PAD_L, width: plotW, top: TOP, height: plotH }}
               onMouseLeave={() => setHover(null)}
+              onFocus={() => setHover((h) => (h === null ? n - 1 : h))}
+              onBlur={() => setHover(null)}
+              onKeyDown={(e) => {
+                if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+                e.preventDefault();
+                setHover((h) => {
+                  const from = h === null ? n - 1 : h;
+                  return Math.min(n - 1, Math.max(0, from + (e.key === "ArrowRight" ? 1 : -1)));
+                });
+              }}
             >
               {daily.map((d, i) => (
-                <button
+                <div
                   key={d.date}
-                  type="button"
+                  id={`${chartId}-day-${i}`}
+                  role="option"
+                  // Focusable programmatically, never in the tab order — the
+                  // listbox above owns the single stop and moves selection.
+                  tabIndex={-1}
+                  aria-selected={hover === i}
                   aria-label={`${shortDate(d.date)}: ${inr(d.spend)}`}
-                  className="h-full flex-1 cursor-default"
+                  className="h-full flex-1"
                   onMouseEnter={() => setHover(i)}
-                  onFocus={() => setHover(i)}
-                  onBlur={() => setHover(null)}
                   onTouchStart={() => setHover(hover === i ? null : i)}
                 />
               ))}
             </div>
           )}
+
+          {/* Persistent, so a repeated polite update actually announces. */}
+          {/* One line on purpose: the money-render gate reads line by line, and
+              this is assistive-tech text rather than a visible figure. */}
+          <p role="status" aria-live="polite" className="sr-only">{hover !== null && daily[hover] ? `${shortDate(daily[hover].date)}: ${inr(daily[hover].spend)}` : ""}</p>
 
           {hover !== null && daily[hover] && (
             <div
