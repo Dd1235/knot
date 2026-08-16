@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { LedgerTransaction, inr, listTransactions, voidTransaction } from "@/lib/api";
+import {
+  LedgerTransaction,
+  TransactionWhy,
+  getTransactionWhy,
+  inr,
+  listTransactions,
+  voidTransaction,
+} from "@/lib/api";
 import AppShell, { PageTitle } from "@/components/ui/AppShell";
 import Button from "@/components/ui/Button";
 import Money from "@/components/ui/Money";
@@ -24,6 +31,136 @@ const DIRECTION: Record<string, { label: string; sign: string; tone: string }> =
   refund: { label: "refunded", sign: "+", tone: "text-positive" },
   reversal: { label: "reversal", sign: "↺", tone: "text-ink-muted" },
 };
+
+/** One step of the derivation, as a labelled row.
+ *
+ * The label column is fixed-width so the four steps read as a sequence rather
+ * than four unrelated paragraphs — the point of the panel is that these things
+ * happened in an order. */
+function Step({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3 text-[11px]">
+      <span className="w-14 shrink-0 pt-px text-ink-muted">{label}</span>
+      <div className="min-w-0 flex-1 text-ink-secondary">{children}</div>
+    </div>
+  );
+}
+
+/** Why does this entry exist? — said → recalled → ran → posted.
+ *
+ * Every part can legitimately be missing: a row posted through the REST
+ * endpoint had no tool call, and a spoken turn has no context trace because
+ * voice turns persist by a path that does not write one. Each says so, because
+ * a blank space would read as "nothing happened" rather than "not recorded". */
+function WhyPanel({ id, name }: { id: string; name: string }) {
+  const [why, setWhy] = useState<TransactionWhy | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    getTransactionWhy(id)
+      .then((w) => live && setWhy(w))
+      .catch(() => live && setFailed(true));
+    return () => {
+      live = false;
+    };
+  }, [id]);
+
+  if (failed) {
+    return (
+      <p className="px-3 pb-2.5 pl-14 text-[11px] text-ink-muted" role="alert">
+        Couldn’t load where this came from.
+      </p>
+    );
+  }
+  if (!why) {
+    return (
+      <div className="px-3 pb-2.5 pl-14">
+        <div className="h-16 animate-pulse rounded-lg bg-surface-raised" />
+      </div>
+    );
+  }
+
+  const rules = why.recalled.rules ?? [];
+  const facts = why.recalled.facts ?? [];
+  const episodes = why.recalled.episodes ?? [];
+  const nothingRecalled = rules.length + facts.length + episodes.length === 0;
+
+  return (
+    <div className="space-y-2 border-t border-line bg-surface-raised px-3 py-2.5 pl-14">
+      <Step label="you said">
+        {why.said ? (
+          <span className="text-ink-primary">“{why.said}”</span>
+        ) : (
+          <span className="text-ink-muted">not recorded — posted without a sentence</span>
+        )}
+      </Step>
+
+      <Step label="recalled">
+        {nothingRecalled ? (
+          <span className="text-ink-muted">nothing — this turn needed no memory</span>
+        ) : (
+          <ul className="space-y-0.5">
+            {rules.map((r, i) => (
+              <li key={`r${i}`}>
+                <span className="text-ink-muted">rule</span> {r.rule.instruction}
+              </li>
+            ))}
+            {facts.map((f, i) => (
+              <li key={`f${i}`}>
+                <span className="text-ink-muted">{f.kind}</span> {f.fact}
+              </li>
+            ))}
+            {episodes.map((e, i) => (
+              <li key={`e${i}`}>
+                <span className="text-ink-muted">{e.kind}</span> {e.summary}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Step>
+
+      <Step label="ran">
+        {why.ran ? (
+          <>
+            <span className="font-mono text-brand-ink">{why.ran.tool}</span>
+            <span className="text-ink-muted"> · {why.ran.latency_ms}ms</span>
+            {/* Wraps rather than truncates: the arguments are the evidence.
+                Clipping them cut off exactly the one that came from a recalled
+                rule instead of from the sentence, which is the whole point. */}
+            <div className="mt-0.5 break-all font-mono text-[10px] text-ink-muted">
+              {JSON.stringify(why.ran.args)}
+            </div>
+          </>
+        ) : (
+          <span className="text-ink-muted">no tool call — posted directly to the ledger</span>
+        )}
+      </Step>
+
+      {/* The invariant, per entry. Every other screen claims the books balance;
+          this is the one place you can watch a single entry do it. */}
+      <Step label="posted">
+        <ul className="space-y-0.5 tabular-nums">
+          {why.posted.map((leg, i) => (
+            <li key={i} className="flex justify-between gap-3">
+              <span className="truncate">{leg.account}</span>
+              <Money value={leg.amount} tone="neutral" />
+            </li>
+          ))}
+          <li className="flex justify-between gap-3 border-t border-line pt-0.5">
+            <span className="text-ink-muted">sum</span>
+            <Money
+              value={why.transaction.leg_sum}
+              tone={Number(why.transaction.leg_sum) === 0 ? "positive" : "negative"}
+            />
+          </li>
+        </ul>
+      </Step>
+
+      <p className="sr-only">Derivation of {name} loaded.</p>
+    </div>
+  );
+}
 
 function dayLabel(iso: string): string {
   const d = new Date(iso);
@@ -75,6 +212,9 @@ function Badge({ children }: { children: React.ReactNode }) {
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<LedgerTransaction[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // One open at a time: the panel is tall, and two expanded rows lose the
+  // ordering that makes the ledger readable.
+  const [whyId, setWhyId] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
 
   const refresh = useCallback(() => {
@@ -159,11 +299,11 @@ export default function TransactionsPage() {
                   const { name, auto } = cleanName(t.description);
                   const minor = Number(t.amount) < MINOR_AMOUNT && t.direction === "spent";
                   return (
+                    <div key={t.id} className={dead ? "opacity-55" : ""}>
                     <div
-                      key={t.id}
                       className={`group flex items-start gap-3 px-3 ${
                         minor ? "py-1.5" : "py-2.5"
-                      } ${dead ? "opacity-55" : ""}`}
+                      }`}
                     >
                       {/* Identity is a glyph, not a hue: shape survives
                           greyscale, colour blindness and a twelfth category.
@@ -231,6 +371,20 @@ export default function TransactionsPage() {
                           <span className="text-ink-muted">{dir.sign}</span>
                           <Money value={t.amount} tone="neutral" />
                         </span>
+                        {/* Kept on voided rows too: a reversal is exactly the
+                            entry you most want to be able to interrogate. */}
+                        <Button
+                          variant="ghost"
+                          onClick={() => setWhyId(whyId === t.id ? null : t.id)}
+                          aria-expanded={whyId === t.id}
+                          aria-controls={`why-${t.id}`}
+                          aria-label={`Why is ${name} here?`}
+                          className={`transition-opacity focus-visible:opacity-100 group-hover:opacity-100 ${
+                            whyId === t.id ? "opacity-100" : "opacity-0"
+                          }`}
+                        >
+                          why
+                        </Button>
                         {!dead ? (
                           <Button
                             variant="tonal"
@@ -248,6 +402,10 @@ export default function TransactionsPage() {
                           </span>
                         )}
                       </div>
+                    </div>
+                    <div id={`why-${t.id}`}>
+                      {whyId === t.id && <WhyPanel id={t.id} name={name} />}
+                    </div>
                     </div>
                   );
                 })}

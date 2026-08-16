@@ -197,6 +197,21 @@ export const voidTransaction = (id: string, reason: string) =>
     body: JSON.stringify({ reason }),
   });
 
+/** The derivation chain behind one entry. Each part is independently absent:
+ * a row posted through the REST endpoint has no tool call, and a voice turn
+ * has no context trace. The view says which, rather than implying the step
+ * didn't happen. */
+export interface TransactionWhy {
+  transaction: { id: string; description: string; category: string; leg_sum: string };
+  said: string;
+  recalled: ContextTrace;
+  ran: { tool: string; args: Record<string, unknown>; latency_ms: number } | null;
+  posted: { account: string; amount: string; memo: string | null }[];
+}
+
+export const getTransactionWhy = (id: string) =>
+  api<TransactionWhy>(`/ledger/transactions/${id}/why`);
+
 export const getMemoryOverview = () =>
   api<{
     semantic_facts: number;
