@@ -461,6 +461,12 @@ export function authHeadersForRealtime(): Record<string, string> {
 
 export interface StackFacts {
   version: string;
+  /** Where the cluster answered from, asked of the cluster. */
+  region: string;
+  /** One trivial query, timed on its own — not the whole page. */
+  roundtrip_ms: number;
+  /** 40001 conflicts this process has detected and retried. */
+  retries_handled: number;
   vector_indexes: { table: string; index: string; columns: string[] }[];
   ttl: { table: string; expire_after: string }[];
   memory_counts: Record<string, number>;

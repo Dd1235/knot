@@ -96,18 +96,36 @@ export default function ArchitecturePage() {
     <AppShell>
       <PageTitle>How it works</PageTitle>
 
-      <div className="mt-5 max-w-3xl space-y-4">
+      <div className="mt-5 max-w-5xl space-y-4">
         <section>
           <h2 className="text-xl font-semibold tracking-tight">
             One database holds the money and the memory.
           </h2>
-          <p className="mt-2 text-sm text-ink-secondary">
+          <p className="mt-2 max-w-160 text-sm leading-relaxed text-ink-secondary">
             Most agents bolt a vector store onto a transactional database and hope the two
             agree. Knot keeps a serializable double-entry ledger and four memory stores in a
             single CockroachDB cluster, so a fact can be recalled and money can be moved
             inside the same transaction. Everything below is read from the running cluster
             when this page loads — it cannot drift from what is actually deployed.
           </p>
+        </section>
+
+        {/* Asked of the cluster on every load. The round trip is the number
+            that makes the region choice load-bearing rather than decorative:
+            a serializable ledger reads inside the write, so this sits on the
+            critical path of every request. */}
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { k: "cluster", v: stack ? stack.version.split(" ")[2] ?? "—" : "…" },
+            { k: "region", v: stack ? stack.region : "…" },
+            { k: "round trip", v: stack ? `${stack.roundtrip_ms} ms` : "…" },
+            { k: "40001 handled", v: stack ? stack.retries_handled.toLocaleString("en-IN") : "…" },
+          ].map(({ k, v }) => (
+            <div key={k} className="rounded-xl border border-line p-3">
+              <p className="text-[11px] uppercase tracking-wide text-ink-secondary">{k}</p>
+              <p className="mt-1 truncate font-mono text-sm text-ink-primary">{v}</p>
+            </div>
+          ))}
         </section>
 
         {/* The invariant, checked at request time rather than asserted. */}
@@ -158,7 +176,8 @@ export default function ArchitecturePage() {
                 <div className="mb-2 flex items-baseline justify-between gap-2">
                   <h3 className="text-sm font-medium">{store.name}</h3>
                   <span className="text-xs tabular-nums text-ink-muted">
-                    {stack ? stack.memory_counts[store.key] ?? 0 : "…"} rows
+                    {stack ? stack.memory_counts[store.key] ?? 0 : "…"}{" "}
+                    {stack && stack.memory_counts[store.key] === 1 ? "row" : "rows"}
                   </span>
                 </div>
                 <p className="text-sm text-ink-secondary">{store.holds}</p>
