@@ -33,6 +33,14 @@ export interface RealtimeHandlers {
   onAssistantTranscript: (text: string) => void;
   onTool: (name: string) => void;
   onError: (message: string) => void;
+  /** The session this conversation is being written to.
+   *
+   * Fired once, as soon as the server tells us. Without it a spoken
+   * conversation that started from a page with no session in progress minted a
+   * new one server-side, persisted every turn into it, and never told the
+   * browser — so chat had nothing to resume and the conversation appeared to
+   * vanish, even though /sessions could still show it. */
+  onSession?: (sessionId: string) => void;
 }
 
 interface PendingCall {
@@ -100,6 +108,9 @@ export class RealtimeSession {
     const { client_secret, session_id, model } = await res.json();
     if (this.aborted()) return;
     this.sessionId = session_id;
+    // Announce it before the connection is even up: the turns will be written
+    // to this session whatever happens next, so the browser should know now.
+    this.handlers.onSession?.(session_id);
 
     const pc = new RTCPeerConnection();
     this.pc = pc;

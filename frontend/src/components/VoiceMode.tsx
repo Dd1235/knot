@@ -152,6 +152,12 @@ export default function VoiceMode({
       },
       onTool: (name) => live && setTool(name),
       onError: (message) => live && setReply(message),
+      // Claim the session for the whole app, not just this overlay — this is
+      // what makes a spoken conversation still be there when you close voice
+      // and look at chat. Deliberately not guarded on `live`: the session
+      // exists on the server regardless of whether this effect is still the
+      // current one, and losing the id is exactly the bug being fixed.
+      onSession: (id) => localStorage.setItem("ledger:session", id),
     });
     realtimeRef.current = session;
 

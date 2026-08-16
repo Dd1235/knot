@@ -177,7 +177,15 @@ export default function ChatPage() {
    *
    * Loading the turns makes the visible conversation and the real one the same
    * thing, which is the only version of this that isn't confusing. */
-  useEffect(() => {
+  const refreshBalances = useCallback(
+    () =>
+      getBalances()
+        .then((b) => setPeople(b.people.filter((p) => Number(p.balance) !== 0)))
+        .catch(() => {}),
+    [],
+  );
+
+  const restoreSession = useCallback(() => {
     const stored = localStorage.getItem("ledger:session");
     setSessionId(stored);
     refreshBalances();
@@ -203,7 +211,13 @@ export default function ChatPage() {
         setSessionId(null);
       })
       .finally(() => setRestoring(false));
+  }, [refreshBalances]);
+
+  useEffect(() => {
+    restoreSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   useEffect(() => {
     // Only once there is something to follow. Scrolling on an empty
@@ -220,11 +234,6 @@ export default function ChatPage() {
         window.matchMedia("(prefers-reduced-motion: reduce)").matches);
     bottomRef.current?.scrollIntoView({ behavior: still ? "instant" : "smooth" });
   }, [messages, busy, restoring]);
-
-  const refreshBalances = () =>
-    getBalances()
-      .then((b) => setPeople(b.people.filter((p) => Number(p.balance) !== 0)))
-      .catch(() => {});
 
   const patchLast = (update: (m: Message) => Message) =>
     setMessages((all) => {
@@ -290,11 +299,22 @@ export default function ChatPage() {
       }
       return replyText;
     },
-    [busy, sessionId]
+    [busy, sessionId, refreshBalances]
   );
 
   const [focused, setFocused] = useState(false);
   const { open: voiceOpen, openVoice, setHandler } = useVoice();
+
+  /* Live voice does not go through this page's `send` — it talks to the
+   * realtime service directly and the turns are persisted server-side. So when
+   * the overlay closes, the conversation on screen is stale by exactly the
+   * turns that were just spoken. Re-read the session and they appear, which is
+   * what "voice and text are one conversation" has to mean in practice. */
+  const wasOpen = useRef(voiceOpen);
+  useEffect(() => {
+    if (wasOpen.current && !voiceOpen) restoreSession();
+    wasOpen.current = voiceOpen;
+  }, [voiceOpen, restoreSession]);
 
   /* The shell owns the overlay so it can open anywhere, but on this page a
    * spoken turn should stream into the visible conversation exactly as a typed
