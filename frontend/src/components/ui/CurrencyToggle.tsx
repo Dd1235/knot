@@ -90,17 +90,17 @@ export default function CurrencyToggle() {
 
           {currency.code !== "INR" && (
             <div className="mt-2 border-t border-line pt-2">
-              <label className="block px-1 text-[11px] text-ink-secondary">
-                1 {currency.code} =
+              <label htmlFor="fx-rate" className="block px-1 text-[11px] text-ink-secondary">
+                1 {currency.code} = how many rupees
               </label>
               <div className="mt-1 flex gap-1">
                 <input
                   value={rate}
                   onChange={(e) => setRate(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && applyRate()}
+                  id="fx-rate"
                   inputMode="decimal"
-                  aria-label={`Rupees per ${currency.code}`}
-                  className="w-full rounded-lg border border-line bg-surface-raised px-2 py-1 text-sm tabular-nums outline-none focus:border-brand-line"
+                  className="w-full rounded-lg border border-line bg-surface-raised px-2 py-1 text-base tabular-nums focus:border-brand-line sm:text-sm"
                 />
                 <Button variant="tonal" tone="brand" onClick={applyRate}>
                   set

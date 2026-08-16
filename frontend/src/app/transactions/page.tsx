@@ -9,7 +9,7 @@ import {
   listTransactions,
   voidTransaction,
 } from "@/lib/api";
-import AppShell, { PageTitle } from "@/components/ui/AppShell";
+import AppShell, { PageTitle, ScreenReaderOnly } from "@/components/ui/AppShell";
 import Button from "@/components/ui/Button";
 import Money from "@/components/ui/Money";
 import { GROUP_COLORS } from "@/lib/groups";
@@ -52,19 +52,31 @@ function Step({ label, children }: { label: string; children: React.ReactNode })
  * endpoint had no tool call, and a spoken turn has no context trace because
  * voice turns persist by a path that does not write one. Each says so, because
  * a blank space would read as "nothing happened" rather than "not recorded". */
-function WhyPanel({ id, name }: { id: string; name: string }) {
+function WhyPanel({
+  id,
+  name,
+  onLoaded,
+}: {
+  id: string;
+  name: string;
+  onLoaded: (message: string) => void;
+}) {
   const [why, setWhy] = useState<TransactionWhy | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let live = true;
     getTransactionWhy(id)
-      .then((w) => live && setWhy(w))
+      .then((w) => {
+        if (!live) return;
+        setWhy(w);
+        onLoaded(`Showing why ${name} exists: ${w.posted.length} legs.`);
+      })
       .catch(() => live && setFailed(true));
     return () => {
       live = false;
     };
-  }, [id]);
+  }, [id, name, onLoaded]);
 
   if (failed) {
     return (
@@ -157,7 +169,6 @@ function WhyPanel({ id, name }: { id: string; name: string }) {
         </ul>
       </Step>
 
-      <p className="sr-only">Derivation of {name} loaded.</p>
     </div>
   );
 }
@@ -215,6 +226,9 @@ export default function TransactionsPage() {
   // One open at a time: the panel is tall, and two expanded rows lose the
   // ordering that makes the ledger readable.
   const [whyId, setWhyId] = useState<string | null>(null);
+  /* Rendered empty from the start. A live region inserted at the same moment
+     as its text is announced unreliably; a stable one that changes is not. */
+  const [announcement, setAnnouncement] = useState("");
   const [filter, setFilter] = useState("");
 
   const refresh = useCallback(() => {
@@ -230,6 +244,7 @@ export default function TransactionsPage() {
     setBusyId(txn.id);
     try {
       await voidTransaction(txn.id, "voided from transactions page");
+      setAnnouncement(`Voided ${txn.description}. A reversing entry was added.`);
       refresh();
     } finally {
       setBusyId(null);
@@ -262,12 +277,15 @@ export default function TransactionsPage() {
     <AppShell>
       <div className="flex max-w-3xl flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <PageTitle>Transactions</PageTitle>
+      <ScreenReaderOnly role="status" aria-live="polite">
+        {announcement}
+      </ScreenReaderOnly>
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Search description, category or person…"
           aria-label="Search transactions"
-          className="w-full rounded-lg border border-line bg-surface-card px-3 py-2 text-sm outline-none placeholder:text-ink-muted focus:border-brand-line sm:max-w-xs"
+          className="w-full rounded-lg border border-line bg-surface-card px-3 py-2 text-base placeholder:text-ink-muted focus:border-brand-line sm:max-w-xs sm:text-sm"
         />
       </div>
 
@@ -404,7 +422,7 @@ export default function TransactionsPage() {
                       </div>
                     </div>
                     <div id={`why-${t.id}`}>
-                      {whyId === t.id && <WhyPanel id={t.id} name={name} />}
+                      {whyId === t.id && <WhyPanel id={t.id} name={name} onLoaded={setAnnouncement} />}
                     </div>
                     </div>
                   );

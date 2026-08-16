@@ -265,7 +265,7 @@ export default function VoiceMode({
       <div className="flex h-14 items-center justify-between gap-2">
         {/* Named by what they cost you, not by their technology. "realtime"
             vs "on-device" told you nothing about which one bills per minute. */}
-        <div role="tablist" aria-label="Voice engine" className="flex gap-1">
+        <div role="group" aria-label="Voice engine" className="flex gap-1">
           {(
             [
               { id: "device", label: "free", hint: "On-device — free, one turn at a time" },
@@ -275,8 +275,7 @@ export default function VoiceMode({
             <button
               key={id}
               type="button"
-              role="tab"
-              aria-selected={engine === id}
+              aria-pressed={engine === id}
               title={hint}
               onClick={() => switchEngine(id)}
               className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
@@ -295,7 +294,7 @@ export default function VoiceMode({
             <select
               value={speechLang}
               onChange={(e) => setSpeechLang(e.target.value)}
-              className="rounded-full border border-line bg-surface-card px-2 py-1 text-xs text-ink-secondary outline-none"
+              className="rounded-full border border-line bg-surface-card px-2 py-1 text-base text-ink-secondary sm:text-xs"
               title="Language for on-device speech. Live voice detects it for you."
             >
               {SPEECH_LANGS.map((l) => (

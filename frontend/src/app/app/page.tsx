@@ -401,7 +401,7 @@ export default function ChatPage() {
         onBlur={() => setFocused(false)}
         placeholder={mic.listening ? "listening…" : "lent Priya 500 for lunch…"}
         aria-label="Message"
-        className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-[15px] outline-none placeholder:text-ink-muted"
+        className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-base placeholder:text-ink-muted sm:text-[15px]"
       />
       {mic.supported && (
         <Button

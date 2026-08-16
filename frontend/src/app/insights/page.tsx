@@ -98,11 +98,12 @@ function NewLimit({
 
   return (
     <div className="mt-3 space-y-2 border-t border-line pt-3">
-      <div className="flex flex-wrap gap-1">
+      <div role="group" aria-label="What to cap" className="flex flex-wrap gap-1">
         {["total", "essentials", "discretionary", "debt"].map((t) => (
           <button
             key={t}
             type="button"
+            aria-pressed={target === t}
             onClick={() => setTarget(t)}
             className={`rounded-lg px-2 py-1 text-[11px] transition-colors ${
               target === t
@@ -127,7 +128,7 @@ function NewLimit({
           inputMode="decimal"
           placeholder="amount per month"
           aria-label="Monthly limit amount"
-          className="min-w-0 flex-1 rounded-lg border border-line bg-surface-raised px-2 py-1 text-sm tabular-nums outline-none focus:border-brand-line"
+          className="min-w-0 flex-1 rounded-lg border border-line bg-surface-raised px-2 py-1 text-base tabular-nums focus:border-brand-line sm:text-sm"
         />
         <Button variant="tonal" tone="brand" onClick={submit}>
           set
@@ -719,7 +720,7 @@ export default function InsightsPage() {
                         }}
                         inputMode="decimal"
                         aria-label={`Limit for ${l.target || "everything"}`}
-                        className="w-20 rounded border border-brand-line bg-surface-raised px-1.5 py-0.5 text-right tabular-nums outline-none"
+                        className="w-20 rounded border border-brand-line bg-surface-raised px-1.5 py-1 text-right text-base tabular-nums sm:text-sm"
                       />
                     ) : (
                       <button
@@ -728,7 +729,7 @@ export default function InsightsPage() {
                           setDraft(String(Number(l.limit)));
                           setEditing(`${l.scope}:${l.target}`);
                         }}
-                        className="rounded px-1 underline decoration-dotted underline-offset-2 hover:bg-surface-raised"
+                        className="-my-1 rounded px-1 py-1 underline decoration-dotted underline-offset-2 hover:bg-surface-raised"
                         aria-label={`Change the limit for ${l.target || "everything"}`}
                       >
                         <Money value={l.limit} tone="neutral" />
@@ -738,7 +739,7 @@ export default function InsightsPage() {
                       type="button"
                       onClick={() => removeLimit(l.scope, l.target)}
                       aria-label={`Remove the limit for ${l.target || "everything"}`}
-                      className="text-ink-muted transition-colors hover:text-negative"
+                      className="-m-1.5 p-1.5 text-ink-muted transition-colors hover:text-negative"
                     >
                       <Icon as={X} size={12} />
                     </button>

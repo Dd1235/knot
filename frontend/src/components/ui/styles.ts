@@ -1,6 +1,6 @@
 export const inputClass =
-  "w-full rounded-xl border border-line bg-surface-card px-4 py-3 text-sm text-ink-primary " +
-  "outline-none placeholder:text-ink-muted focus:border-brand-line";
+  "w-full rounded-xl border border-line bg-surface-card px-4 py-3 text-base text-ink-primary " +
+  "placeholder:text-ink-muted focus:border-brand-line sm:text-sm";
 
 export type Tone = "neutral" | "brand" | "positive" | "negative" | "warning" | "info";
 
