@@ -472,10 +472,60 @@ export default function LandingPage() {
         </div>
       </main>
 
-      <footer className="border-t border-line px-6 py-6 sm:px-8">
-        <p className="mx-auto w-full max-w-310 text-xs text-ink-muted">
-          Built for the CockroachDB × AWS hackathon.
-        </p>
+      <footer className="border-t border-line px-6 py-12 sm:px-8">
+        <div className="mx-auto w-full max-w-310">
+          <div className="grid gap-10 md:grid-cols-12">
+            <div className="md:col-span-6">
+              <Wordmark size={20} />
+              <p className="mt-3 max-w-[38ch] text-sm leading-relaxed text-ink-secondary">
+                A voice-first ledger that remembers. Say what happened; the books
+                stay balanced.
+              </p>
+            </div>
+            <nav aria-label="Product" className="md:col-span-3">
+              <p className="eyebrow text-ink-secondary">Product</p>
+              <ul className="mt-3 space-y-2 text-sm">
+                <li>
+                  <Link
+                    href="/login"
+                    className="text-ink-secondary transition-colors hover:text-ink-primary"
+                  >
+                    Try it
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/demo"
+                    className="text-ink-secondary transition-colors hover:text-ink-primary"
+                  >
+                    Race demo
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/architecture"
+                    className="text-ink-secondary transition-colors hover:text-ink-primary"
+                  >
+                    How it works
+                  </Link>
+                </li>
+              </ul>
+            </nav>
+            <div className="md:col-span-3">
+              <p className="eyebrow text-ink-secondary">Built with</p>
+              {/* Plain text, not logos: the sponsors are load-bearing, and the
+                  architecture page proves it better than a badge wall could. */}
+              <ul className="mt-3 space-y-2 text-sm text-ink-secondary">
+                <li>CockroachDB Cloud</li>
+                <li>AWS App Runner</li>
+                <li>Next.js</li>
+              </ul>
+            </div>
+          </div>
+          <p className="mt-10 border-t border-line pt-6 text-xs text-ink-muted">
+            Built for the CockroachDB × AWS Hackathon · Apache-2.0 · Books stay in ₹.
+          </p>
+        </div>
       </footer>
     </div>
   );
