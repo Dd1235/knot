@@ -389,7 +389,7 @@ export default function ChatPage() {
         e.preventDefault();
         send(input);
       }}
-      className={`elevated flex w-full items-center gap-2 rounded-2xl border bg-surface-card p-2 transition-colors ${
+      className={`elevated flex w-full items-center gap-2 rounded-2xl border bg-surface-card p-2 transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--focus-ring)] ${
         focused ? "border-brand-line" : "border-line"
       }`}
     >
@@ -401,7 +401,7 @@ export default function ChatPage() {
         onBlur={() => setFocused(false)}
         placeholder={mic.listening ? "listening…" : "lent Priya 500 for lunch…"}
         aria-label="Message"
-        className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-base placeholder:text-ink-muted sm:text-[15px]"
+        className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-base outline-none placeholder:text-ink-muted sm:text-[15px]"
       />
       {mic.supported && (
         <Button
