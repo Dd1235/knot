@@ -159,12 +159,35 @@ export default function MemoryPage() {
           ) : (
             actions.map((a) => (
               <Card key={a.id}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-xs text-brand-ink">{a.tool}</span>
-                  <span className="tabular-nums text-[11px] text-ink-secondary">
-                    {a.latency_ms}ms · {dt(a.created_at)}
-                  </span>
-                </div>
+                {/* The arguments and the result were always fetched and never
+                    shown, which left this tab a latency list. They are what
+                    make it an audit log: what the agent asked for, and what it
+                    got back. Collapsed, because most of the time the tool name
+                    and the latency are the whole answer. */}
+                <details className="group/act">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+                    <span className="font-mono text-xs text-brand-ink">{a.tool}</span>
+                    <span className="tabular-nums text-[11px] text-ink-secondary">
+                      {a.latency_ms}ms · {dt(a.created_at)}
+                    </span>
+                  </summary>
+                  <dl className="mt-2 space-y-1.5 border-t border-line pt-2">
+                    <div>
+                      <dt className="text-[11px] text-ink-muted">args</dt>
+                      <dd className="mt-0.5 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[10px] text-ink-secondary">
+                        {JSON.stringify(a.args, null, 1)}
+                      </dd>
+                    </div>
+                    {a.result_summary && (
+                      <div>
+                        <dt className="text-[11px] text-ink-muted">result</dt>
+                        <dd className="mt-0.5 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[10px] text-ink-secondary">
+                          {a.result_summary}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                </details>
                 {a.error && <p className="mt-1 text-xs text-negative">{a.error}</p>}
               </Card>
             ))
