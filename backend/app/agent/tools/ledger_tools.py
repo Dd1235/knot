@@ -116,6 +116,40 @@ def _build_legs(
     raise UnbalancedTransaction(f"unknown direction: {direction}")
 
 
+
+# Person accounts are namespaced; a loan liability is not a person.
+_PERSON_PREFIXES = ("receivable:", "liability:")
+
+
+async def _touched_balances(user_handle: str, legs: list[dict]) -> list[dict]:
+    """Balances for the people this transaction actually moved.
+
+    It used to return every person the user has ever named. The model has no
+    way to tell which of those changed, so it narrated whichever looked
+    interesting — "spent 100 on an auto with Alice and Bob; Ivan's balance
+    unchanged at ₹300" — volunteering a stranger's balance into an answer about
+    an auto fare.
+
+    Same narrowing principle the reporting tools use: the model cannot read out
+    what it was not given.
+    """
+    names = set()
+    for leg in legs:
+        account = (leg.get("account") or "").lower()
+        if account.startswith("liability:loan:"):
+            continue
+        for prefix in _PERSON_PREFIXES:
+            if account.startswith(prefix):
+                names.add(account[len(prefix):])
+    if not names:
+        return []
+    return [
+        row
+        for row in await service.person_balances(user_handle)
+        if row["display_name"].strip().lower() in names
+    ]
+
+
 @register(
     "record_transaction",
     "Record a money event as a balanced double-entry transaction. Use for any "
@@ -217,7 +251,7 @@ async def record_transaction(ctx: ToolContext, args: dict) -> dict:
     return {
         "transaction_id": str(posted.id),
         "legs": posted.legs,
-        "people_balances": await service.person_balances(ctx.user_handle),
+        "people_balances": await _touched_balances(ctx.user_handle, posted.legs),
     }
 
 
@@ -251,7 +285,7 @@ async def settle_up(ctx: ToolContext, args: dict) -> dict:
     return {
         "transaction_id": str(posted.id),
         "description": posted.description,
-        "people_balances": await service.person_balances(ctx.user_handle),
+        "people_balances": await _touched_balances(ctx.user_handle, posted.legs),
     }
 
 
@@ -357,7 +391,7 @@ async def void_transaction(ctx: ToolContext, args: dict) -> dict:
     return {
         "reversal_id": str(posted.id),
         "description": posted.description,
-        "people_balances": await service.person_balances(ctx.user_handle),
+        "people_balances": await _touched_balances(ctx.user_handle, posted.legs),
     }
 
 

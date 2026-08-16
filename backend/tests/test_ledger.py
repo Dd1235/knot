@@ -232,3 +232,36 @@ async def test_a_refund_reduces_the_original_category(user):
     assert Decimal(groceries["amount"]) == Decimal("300")
 
     assert (await service.recent_transactions(user, limit=1))[0]["direction"] == "refund"
+
+
+async def test_a_reply_only_learns_about_the_people_it_touched(user):
+    """The bug: every write returned every person the user had ever named, so
+    the agent volunteered strangers into unrelated answers — "spent 100 on an
+    auto with Alice and Bob; Ivan's balance unchanged at ₹300".
+
+    The model cannot read out what it was not given, so it is not given it.
+    """
+    from app.agent.registry import ToolContext
+    from app.agent.tools import ledger_tools
+    from app.llm.provider import ToolCall
+
+    ctx = ToolContext(user_handle=user, session_id=str(uuid.uuid4()))
+
+    async def say(args: dict) -> dict:
+        return await ledger_tools.record_transaction(ctx, args)
+
+    # Ivan is owed money from an earlier, unrelated evening.
+    await say({"description": "dinner", "amount": 300, "direction": "lent",
+               "counterparty": "Ivan", "category": "food"})
+
+    result = await say({"description": "auto", "amount": 100, "direction": "spent",
+                        "category": "transport", "split_with": ["Alice", "Bob"]})
+
+    named = {p["display_name"].lower() for p in result["people_balances"]}
+    assert named == {"alice", "bob"}, f"expected only the split, got {named}"
+    assert "ivan" not in named
+
+    # And a transaction involving nobody mentions nobody.
+    solo = await say({"description": "chai", "amount": 15, "direction": "spent",
+                      "category": "food"})
+    assert solo["people_balances"] == []
