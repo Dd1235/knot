@@ -2,7 +2,6 @@ import Link from "next/link";
 import Logo, { Wordmark } from "@/components/ui/Logo";
 import { buttonClass } from "@/components/ui/Button";
 import Pill from "@/components/ui/Pill";
-import Stat from "@/components/ui/Stat";
 
 /* The landing page shows the product instead of describing it: every visual
  * below is the real UI's own markup and tokens — chat bubbles, memory traces,
@@ -143,6 +142,27 @@ export default function LandingPage() {
       <header className="border-b border-line px-6 pt-[env(safe-area-inset-top)] sm:px-8">
         <div className="mx-auto flex h-16 w-full max-w-310 items-center justify-between">
           <Wordmark size={24} />
+          {/* Quiet anchors, not a mega-menu: a one-page product gets a one-line map. */}
+          <nav aria-label="Sections" className="hidden items-center gap-7 md:flex">
+            <a
+              href="#memory"
+              className="text-sm text-ink-secondary transition-colors hover:text-ink-primary"
+            >
+              Memory
+            </a>
+            <a
+              href="#correctness"
+              className="text-sm text-ink-secondary transition-colors hover:text-ink-primary"
+            >
+              Correctness
+            </a>
+            <Link
+              href="/architecture"
+              className="text-sm text-ink-secondary transition-colors hover:text-ink-primary"
+            >
+              How it works
+            </Link>
+          </nav>
           <div className="flex items-center gap-2">
             <Link href="/login" className={buttonClass("ghost", "sm")}>
               Sign in
@@ -156,21 +176,23 @@ export default function LandingPage() {
 
       <main className="px-6 pb-20 sm:px-8">
         <div className="mx-auto w-full max-w-310">
-          {/* Hero: the claim on the left, the product already doing it on the right. */}
-          <section className="grid items-center gap-10 pt-12 pb-16 lg:grid-cols-2 lg:gap-16">
+          {/* Hero: the claim on the left, the product already doing it on the
+              right. The headline is the wordmark's serif — the one place the
+              brand voice should be loudest — with the promise in italic. */}
+          <section className="grid items-center gap-10 bg-[radial-gradient(55%_45%_at_72%_28%,color-mix(in_oklab,var(--brand)_6%,transparent),transparent)] pt-14 pb-20 sm:pt-20 sm:pb-28 lg:grid-cols-2 lg:gap-16">
             <div>
-              <h1 className="max-w-[14ch] text-[40px] font-semibold leading-[1.05] tracking-[-0.03em] sm:text-[52px]">
-                Money you can just talk about.
+              <h1 className="max-w-[15ch] font-display text-[54px] leading-[1.02] font-normal tracking-[-0.01em] sm:text-[74px]">
+                Money you can <em>just talk</em> about.
               </h1>
-              <p className="mt-4 max-w-150 text-lg text-ink-secondary">
+              <p className="mt-6 max-w-[52ch] text-[17px] leading-[1.65] text-ink-secondary">
                 You tie a knot so you don&apos;t forget. Knot keeps a real double-entry
                 ledger and remembers the people, habits and commitments behind it.
               </p>
-              <div className="mt-8 flex flex-wrap items-center gap-3">
-                <Link href="/login" className={buttonClass("primary", "md")}>
+              <div className="mt-9 flex flex-wrap items-center gap-3">
+                <Link href="/login" className={buttonClass("primary", "lg")}>
                   Try it
                 </Link>
-                <Link href="/demo" className={buttonClass("ghost", "md")}>
+                <Link href="/demo" className={buttonClass("ghost", "lg")}>
                   See the race demo
                 </Link>
               </div>
@@ -190,13 +212,16 @@ export default function LandingPage() {
           </section>
 
           {/* Feature band: memory */}
-          <section className="grid items-center gap-8 py-10 lg:grid-cols-12 lg:gap-12">
+          <section
+            id="memory"
+            className="grid scroll-mt-24 items-center gap-8 py-16 sm:py-24 lg:grid-cols-12 lg:gap-12"
+          >
             <div className="lg:col-span-5">
-              <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-muted">
-                Agentic memory
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight">It remembers.</h2>
-              <p className="mt-2 max-w-150 text-[15px] leading-relaxed text-ink-secondary">
+              <p className="eyebrow text-brand-ink">Agentic memory</p>
+              <h2 className="mt-3 font-display text-[34px] leading-[1.1] font-normal sm:text-[40px]">
+                It remembers.
+              </h2>
+              <p className="mt-4 max-w-150 text-base leading-relaxed text-ink-secondary">
                 Teach it once — rent splits three ways — and next month it just does
                 it. Four memory stores live beside the books: facts, events, rules,
                 and the conversation itself. You never explain the same thing twice.
@@ -208,16 +233,16 @@ export default function LandingPage() {
           </section>
 
           {/* Feature band: insights (mirrored) */}
-          <section className="grid items-center gap-8 py-10 lg:grid-cols-12 lg:gap-12">
+          <section className="grid items-center gap-8 py-16 sm:py-24 lg:grid-cols-12 lg:gap-12">
             <div className="lg:col-span-7 lg:order-first">
               <MiniHeatmap />
             </div>
             <div className="lg:col-span-5">
-              <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-muted">
-                Rule-based insights
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight">It notices.</h2>
-              <p className="mt-2 max-w-150 text-[15px] leading-relaxed text-ink-secondary">
+              <p className="eyebrow text-brand-ink">Rule-based insights</p>
+              <h2 className="mt-3 font-display text-[34px] leading-[1.1] font-normal sm:text-[40px]">
+                It notices.
+              </h2>
+              <p className="mt-4 max-w-150 text-base leading-relaxed text-ink-secondary">
                 A heatmap of half a year, safe-to-spend until payday, limits judged
                 by pace against the calendar. SQL computes every number; the agent
                 only phrases what is already true.
@@ -226,53 +251,62 @@ export default function LandingPage() {
           </section>
 
           {/* Feature band: correctness */}
-          <section className="grid items-center gap-8 py-10 lg:grid-cols-12 lg:gap-12">
+          <section
+            id="correctness"
+            className="grid scroll-mt-24 items-center gap-10 py-16 sm:py-24 lg:grid-cols-12 lg:gap-12"
+          >
             <div className="lg:col-span-5">
-              <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-muted">
-                Serializable isolation
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+              <p className="eyebrow text-brand-ink">Serializable isolation</p>
+              <h2 className="mt-3 font-display text-[34px] leading-[1.1] font-normal sm:text-[40px]">
                 The books can&apos;t drift.
               </h2>
-              <p className="mt-2 max-w-150 text-[15px] leading-relaxed text-ink-secondary">
+              <p className="mt-4 max-w-150 text-base leading-relaxed text-ink-secondary">
                 Ten writes race to settle the same debt; exactly one wins and the
                 rest are cleanly rejected. Every debit still meets its credit — you
                 can fire the race yourself.
               </p>
-              <Link href="/demo" className={`mt-4 ${buttonClass("ghost", "sm")}`}>
+              <Link href="/demo" className={`mt-6 ${buttonClass("ghost", "md")}`}>
                 Run the race demo
               </Link>
             </div>
-            <div className="grid grid-cols-3 gap-3 lg:col-span-7">
-              <Stat label="writes racing" value="10" />
-              <Stat label="winner" value="1" tone="positive" />
-              <Stat label="drift" value="0" tone="brand" />
+            {/* Display numerals, not dashboard tiles — these three are the
+                argument, so they get the display face and a whole column each.
+                Marketing numerals only: money and data stay sans, tabular. */}
+            <div className="grid grid-cols-3 divide-x divide-line lg:col-span-7">
+              {[
+                { value: "10", label: "writes racing", tone: "" },
+                { value: "1", label: "winner", tone: "text-positive" },
+                { value: "0", label: "drift", tone: "text-brand-ink" },
+              ].map(({ value, label, tone }) => (
+                <div key={label} className="px-6 py-2 first:pl-0 sm:px-10">
+                  <p className={`font-display text-[56px] leading-none sm:text-[72px] ${tone}`}>
+                    {value}
+                  </p>
+                  <p className="eyebrow mt-3 text-ink-secondary">{label}</p>
+                </div>
+              ))}
             </div>
           </section>
 
           {/* Breadth, without a wall of text */}
-          <section className="py-10">
-            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-muted">
-              The whole picture
-            </p>
-            <div className="mt-4 grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
+          <section className="py-16 sm:py-24">
+            <p className="eyebrow text-brand-ink">The whole picture</p>
+            <div className="mt-8 grid gap-x-10 gap-y-9 sm:grid-cols-2 lg:grid-cols-4">
               {BREADTH.map(([title, line]) => (
-                <div key={title}>
-                  <h3 className="text-sm font-medium">{title}</h3>
-                  <p className="mt-1 text-[13px] leading-relaxed text-ink-secondary">{line}</p>
+                <div key={title} className="border-t border-line pt-4">
+                  <h3 className="text-[15px] font-medium">{title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-ink-secondary">{line}</p>
                 </div>
               ))}
             </div>
           </section>
 
           {/* Philosophy */}
-          <section className="max-w-3xl py-10">
-            <h2 className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-muted">
-              How it thinks
-            </h2>
-            <dl className="mt-4 divide-y divide-line border-y border-line">
+          <section className="max-w-3xl py-16 sm:py-24">
+            <h2 className="eyebrow text-brand-ink">How it thinks</h2>
+            <dl className="mt-6 divide-y divide-line border-y border-line">
               {PHILOSOPHY.map(([claim, note]) => (
-                <div key={claim} className="flex flex-col gap-1 py-4 sm:flex-row sm:gap-8">
+                <div key={claim} className="flex flex-col gap-1 py-5 sm:flex-row sm:gap-8">
                   <dt className="text-[15px] font-medium sm:w-1/2">{claim}</dt>
                   <dd className="text-[15px] text-ink-secondary sm:w-1/2">{note}</dd>
                 </div>
@@ -280,20 +314,21 @@ export default function LandingPage() {
             </dl>
           </section>
 
-          {/* Built on */}
-          <section className="py-10">
-            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-muted">
-              Built on
-            </p>
-            <p className="mt-3 max-w-160 text-[15px] leading-relaxed text-ink-secondary">
+          {/* The finale: one line in the brand voice, then the door. */}
+          <section className="py-20 text-center sm:py-28">
+            <p className="eyebrow text-brand-ink">Built on one database</p>
+            <h2 className="mx-auto mt-4 max-w-[18ch] font-display text-[40px] leading-[1.05] font-normal sm:text-[52px]">
+              Start talking <em>to</em> your money.
+            </h2>
+            <p className="mx-auto mt-5 max-w-[46ch] text-base leading-relaxed text-ink-secondary">
               One CockroachDB cluster holds the ledger and four memory stores —
               serializable money, vector recall, same transaction.
             </p>
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <Link href="/login" className={buttonClass("primary", "md")}>
+            <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
+              <Link href="/login" className={buttonClass("primary", "lg")}>
                 Start talking
               </Link>
-              <Link href="/architecture" className={buttonClass("ghost", "md")}>
+              <Link href="/architecture" className={buttonClass("ghost", "lg")}>
                 See how it works
               </Link>
             </div>
