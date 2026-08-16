@@ -334,6 +334,10 @@ export interface DueItem {
   category: string;
   due_on: string;
   in_days: number;
+  /** "recurring" for subscriptions, rent and salary; "emi" for a loan payment.
+   * They land on the calendar the same way but are not the same commitment —
+   * you can cancel Netflix, and you cannot cancel an EMI. */
+  kind?: "recurring" | "emi";
 }
 
 export interface SafeToSpend {
