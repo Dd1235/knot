@@ -2,11 +2,13 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { TONE_SOFT, type Tone } from "./styles";
 
 type Variant = "primary" | "ghost" | "tonal";
-type Size = "sm" | "md";
+type Size = "sm" | "md" | "lg";
 
 const SIZE: Record<Size, string> = {
   sm: "px-2.5 py-1.5 text-xs",
   md: "px-4 py-2.5 text-sm font-medium",
+  // Landing-page CTAs only. In the app the primary action is never this loud.
+  lg: "px-6 py-3 text-[15px] font-medium",
 };
 
 /** Gold is a fill exactly once per screen — the single primary action. */

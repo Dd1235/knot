@@ -315,7 +315,8 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  /* Wordmark only — never body copy. */
+  /* The wordmark and display headlines — never body copy, never a number.
+     Below ~28px this face loses its edge; at that point it is the wrong tool. */
   --font-display: var(--font-instrument-serif);
 }
 
@@ -353,6 +354,15 @@
       transition-duration: 0.01ms !important;
     }
   }
+}
+
+/* The one uppercase-label voice. Landing eyebrows and section kickers all
+   speak it; defining it once is what stops tracking values drifting apart. */
+@utility eyebrow {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 /* Ledger paper: rules on the same 28px pitch as list rows, so a row sits ON

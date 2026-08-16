@@ -8,13 +8,15 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-/** The wordmark only. A high-contrast serif beside a geometric sans is what
- * makes a logotype read as drawn rather than typed — and confining it to one
- * component keeps the UI itself in a single family. */
+/** The display face: the wordmark and headlines. A high-contrast serif beside
+ * a geometric sans is what makes the brand read as drawn rather than typed.
+ * Display sizes only (~28px up) — never body copy, and never a number: money
+ * stays in the sans, tabular. Italic is loaded for accent words in headlines. */
 const displaySerif = Instrument_Serif({
   variable: "--font-instrument-serif",
   subsets: ["latin"],
   weight: "400",
+  style: ["normal", "italic"],
 });
 
 const geistMono = Geist_Mono({
