@@ -12,11 +12,11 @@ from decimal import Decimal
 import pytest
 
 from app.agent.registry import ToolContext, dispatch
-from app.llm.provider import ToolCall
 from app.agent.tools import ledger_tools  # noqa: F401 — registers the tools
 from app.db.pool import pool
 from app.ledger import service
 from app.ledger.service import LegSpec
+from app.llm.provider import ToolCall
 from app.memory import inspector, working
 
 
