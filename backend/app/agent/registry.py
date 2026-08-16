@@ -61,8 +61,9 @@ async def _log_action(
     async with pool().connection() as conn:
         await conn.execute(
             """
-            INSERT INTO agent_actions (session_id, tool, args, result_summary, error, latency_ms)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO agent_actions
+                (session_id, tool, args, result_summary, error, latency_ms, transaction_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 session_id,
@@ -71,6 +72,8 @@ async def _log_action(
                 json.dumps(result, default=str)[:400],
                 result.get("error"),
                 latency_ms,
+                # Only write tools return one; a read tool leaves this null.
+                result.get("transaction_id"),
             ),
         )
 

@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -12,6 +13,7 @@ from app.ledger.service import (
     OverSettlement,
     UnbalancedTransaction,
 )
+from app.memory import inspector
 
 router = APIRouter(prefix="/ledger", tags=["ledger"])
 
@@ -102,6 +104,19 @@ async def void_transaction(
     except service.LedgerError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return _txn_response(posted)
+
+
+@router.get("/transactions/{transaction_id}/why")
+async def transaction_why(transaction_id: UUID, x_user: str = Depends(current_user)) -> dict:
+    """The derivation chain behind one entry: said → recalled → ran → posted.
+
+    Read-only and additive — nothing else in the API changes shape, so existing
+    clients are untouched.
+    """
+    chain = await inspector.provenance(x_user, transaction_id)
+    if chain is None:
+        raise HTTPException(status_code=404, detail="transaction not found")
+    return chain
 
 
 @router.get("/balances")

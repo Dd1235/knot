@@ -105,6 +105,84 @@ async def session_trace(user_handle: str, session_id: UUID) -> list[dict]:
     return rows
 
 
+async def provenance(user_handle: str, transaction_id: UUID) -> dict | None:
+    """Why does this transaction exist? — the chain from sentence to legs.
+
+    Four parts, each independently absent-able. A transaction posted through
+    the REST endpoint has no tool call; a voice turn has no context trace,
+    because /voice/turn persists through working.append_turn which does not
+    write one. The view says so rather than implying the step was skipped.
+
+    Returns None if the transaction is not this user's, so the route can 404
+    without a second existence query.
+    """
+    header = await _rows(
+        """
+        SELECT t.id::STRING, t.description, t.raw_input, t.source, t.category,
+               t.occurred_at, COALESCE(SUM(l.amount), 0)::STRING AS leg_sum
+        FROM transactions AS t
+        LEFT JOIN transaction_legs AS l ON l.transaction_id = t.id
+        JOIN users AS u ON u.id = t.user_id
+        WHERE u.handle = %s AND t.id = %s
+        GROUP BY t.id, t.description, t.raw_input, t.source, t.category, t.occurred_at
+        """,
+        (user_handle, transaction_id),
+    )
+    if not header:
+        return None
+    txn = header[0]
+
+    legs = await _rows(
+        """
+        SELECT a.name AS account, l.amount::STRING AS amount, l.memo
+        FROM transaction_legs AS l
+        JOIN accounts AS a ON a.id = l.account_id
+        WHERE l.transaction_id = %s
+        ORDER BY l.amount DESC
+        """,
+        (transaction_id,),
+    )
+
+    # The tool call that produced it. Written by _log_action since 0017; rows
+    # older than that migration have no link and legitimately return nothing.
+    actions = await _rows(
+        """
+        SELECT a.tool, a.args, a.latency_ms, a.session_id::STRING, a.created_at
+        FROM agent_actions AS a
+        JOIN sessions AS s ON s.id = a.session_id
+        JOIN users AS u ON u.id = s.user_id
+        WHERE u.handle = %s AND a.transaction_id = %s
+        ORDER BY a.created_at
+        LIMIT 1
+        """,
+        (user_handle, transaction_id),
+    )
+    ran = actions[0] if actions else None
+
+    # What the agent had in mind when it made that call: the trace persisted on
+    # the assistant turn that closed the same exchange.
+    recalled: dict = {}
+    if ran:
+        traces = await _rows(
+            """
+            SELECT t.context_trace
+            FROM conversation_turns AS t
+            WHERE t.session_id = %s AND t.role = 'assistant'
+              AND t.context_trace IS NOT NULL AND t.created_at >= %s
+            ORDER BY t.created_at
+            LIMIT 1
+            """,
+            (ran["session_id"], ran["created_at"]),
+        )
+        if traces:
+            recalled = traces[0]["context_trace"] or {}
+        ran["created_at"] = ran["created_at"].isoformat()
+
+    txn["occurred_at"] = txn["occurred_at"].isoformat()
+    return {"transaction": txn, "said": txn.pop("raw_input") or "",
+            "recalled": recalled, "ran": ran, "posted": legs}
+
+
 async def recent_actions(user_handle: str, limit: int = 50) -> list[dict]:
     rows = await _rows(
         """
