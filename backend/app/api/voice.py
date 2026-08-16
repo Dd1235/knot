@@ -69,6 +69,10 @@ class ToolCallIn(BaseModel):
     # reports have to follow the screen.
     route: str | None = None
     currency: dict | None = None
+    # What the user actually said this turn. Without it every voice-recorded
+    # transaction stored an empty raw_input, so the one input mode that could
+    # prove it was spoken was the only one that left no receipt.
+    user_message: str | None = None
 
 
 class TurnIn(BaseModel):
@@ -180,6 +184,7 @@ async def run_tool(body: ToolCallIn, x_user: str = Depends(current_user)) -> dic
     ctx = ToolContext(
         user_handle=x_user,
         session_id=str(body.session_id),
+        user_message=body.user_message or "",
         route=body.route or "",
         currency=Currency.parse(body.currency),
     )

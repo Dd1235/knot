@@ -200,6 +200,10 @@ export class RealtimeSession {
             call_id: call.call_id,
             name: call.name,
             arguments: call.arguments,
+            // The transcript of the turn that asked for this call. It is what
+            // gets stored as the transaction's raw_input, so a spoken entry
+            // carries the same receipt a typed one does.
+            user_message: this.lastUser,
             // Per call, not per session: the session is minted once but the
             // user can change page or currency mid-conversation.
             ...turnContext(),
