@@ -91,7 +91,10 @@ async def set_opening_balance_for(
     {
         "type": "object",
         "properties": {
-            "amount": {"type": "number", "description": "Current balance, positive, as the user said it"},
+            "amount": {
+                "type": "number",
+                "description": "Current balance, positive, as the user said it",
+            },
             "account": {
                 "type": "string",
                 "description": "Target account, e.g. cash or bank; default cash",
@@ -125,7 +128,10 @@ async def set_opening_balance(ctx: ToolContext, args: dict) -> dict:
         "type": "object",
         "properties": {
             "name": {"type": "string", "description": "e.g. Netflix, Rent, Salary"},
-            "amount": {"type": "number", "description": "Amount per period, positive, as the user said it"},
+            "amount": {
+                "type": "number",
+                "description": "Amount per period, positive, as the user said it",
+            },
             "cadence": {"type": "string", "enum": ["monthly", "quarterly", "yearly"]},
             "due_day": {
                 "type": "integer",
@@ -352,7 +358,10 @@ async def list_loans(ctx: ToolContext, args: dict) -> dict:
         "properties": {
             "symbol": {"type": "string", "description": "e.g. reliance, infy, parag_flexi"},
             "quantity": {"type": "number", "description": "Units, shares or grams, if stated"},
-            "unit_price": {"type": "number", "description": "Price per unit, as the user said it, if stated"},
+            "unit_price": {
+                "type": "number",
+                "description": "Price per unit, as the user said it, if stated",
+            },
             "amount": {
                 "type": "number",
                 "description": "Total put in, as the user said it, when no units were stated",

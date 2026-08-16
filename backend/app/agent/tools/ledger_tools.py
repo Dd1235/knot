@@ -127,7 +127,10 @@ def _build_legs(
         "type": "object",
         "properties": {
             "description": {"type": "string", "description": "Short human description"},
-            "amount": {"type": "number", "description": "Total, positive, in whatever unit the user said"},
+            "amount": {
+                "type": "number",
+                "description": "Total, positive, in whatever unit the user said",
+            },
             "direction": {
                 "type": "string",
                 "enum": ["spent", "received", "refund", "lent", "borrowed"],
@@ -226,7 +229,10 @@ async def record_transaction(ctx: ToolContext, args: dict) -> dict:
         "type": "object",
         "properties": {
             "person": {"type": "string"},
-            "amount": {"type": "number", "description": "As the user said it; omit for full settlement"},
+            "amount": {
+                "type": "number",
+                "description": "As the user said it; omit for full settlement",
+            },
         },
         "required": ["person"],
     },
