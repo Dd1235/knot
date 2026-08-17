@@ -33,3 +33,7 @@ frontend/public/_seed.html
 *.webm
 *.mov
 frontend/smoke-chat.png
+
+# Agent design tooling, installed per-machine like .claude/
+.agents/
+skills-lock.json
