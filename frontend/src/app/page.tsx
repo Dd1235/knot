@@ -40,9 +40,9 @@ const HEAT = Array.from({ length: 26 * 7 }, (_, i) => {
 
 const HEAT_BG = ["bg-heat-0", "bg-heat-1", "bg-heat-2", "bg-heat-3", "bg-heat-4"];
 
-function UserBubble({ children }: { children: React.ReactNode }) {
+function UserBubble({ children, delay }: { children: React.ReactNode; delay?: number }) {
   return (
-    <div className="flex justify-end">
+    <div className="rise flex justify-end" style={{ animationDelay: `${delay ?? 0}ms` }}>
       <div className="max-w-[85%] rounded-2xl rounded-br-md bg-brand px-3.5 py-2 text-sm text-ink-on-brand">
         {children}
       </div>
@@ -50,14 +50,32 @@ function UserBubble({ children }: { children: React.ReactNode }) {
   );
 }
 
-function KnotBubble({ children, meta }: { children: React.ReactNode; meta?: React.ReactNode }) {
+function KnotBubble({
+  children,
+  meta,
+  delay,
+}: {
+  children: React.ReactNode;
+  meta?: React.ReactNode;
+  delay?: number;
+}) {
   return (
-    <div className="flex justify-start">
+    <div className="rise flex justify-start" style={{ animationDelay: `${delay ?? 0}ms` }}>
       <div className="max-w-[85%]">
         <div className="rounded-2xl rounded-bl-md border border-line bg-surface-card px-3.5 py-2 text-sm">
           {children}
         </div>
-        {meta && <div className="mt-1.5 flex flex-wrap items-center gap-1.5">{meta}</div>}
+        {/* The chip lands a beat after its own reply: the badge is the claim
+            ("it used memory"), and it reads as a consequence rather than as
+            part of the same paint. */}
+        {meta && (
+          <div
+            className="rise mt-1.5 flex flex-wrap items-center gap-1.5"
+            style={{ animationDelay: `${(delay ?? 0) + 260}ms` }}
+          >
+            {meta}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -66,8 +84,9 @@ function KnotBubble({ children, meta }: { children: React.ReactNode; meta?: Reac
 function MiniChat() {
   return (
     <div className="elevated space-y-3 rounded-2xl border border-line bg-surface-raised/40 p-4">
-      <UserBubble>lent Priya 500 for lunch</UserBubble>
+      <UserBubble delay={120}>lent Priya 500 for lunch</UserBubble>
       <KnotBubble
+        delay={380}
         meta={
           <>
             <Pill>recorded</Pill>
@@ -79,8 +98,8 @@ function MiniChat() {
       >
         Noted — Priya now owes you ₹800 with the auto from Tuesday.
       </KnotBubble>
-      <UserBubble>how am I doing this month?</UserBubble>
-      <KnotBubble meta={<Pill>balances</Pill>}>
+      <UserBubble delay={720}>how am I doing this month?</UserBubble>
+      <KnotBubble delay={940} meta={<Pill>balances</Pill>}>
         Food is at ₹6,200 of 10k — on pace. Shopping is running hot: 315% up on
         last month.
       </KnotBubble>
@@ -322,14 +341,14 @@ export default function LandingPage() {
               brand voice should be loudest — with the promise in italic. */}
           <section className="grid items-center gap-10 bg-[radial-gradient(55%_45%_at_72%_28%,color-mix(in_oklab,var(--brand)_6%,transparent),transparent)] pt-14 pb-20 sm:pt-20 sm:pb-28 lg:grid-cols-2 lg:gap-16">
             <div>
-              <h1 className="max-w-[15ch] font-display text-[54px] leading-[1.02] font-normal tracking-[-0.01em] sm:text-[74px]">
+              <h1 className="rise max-w-[15ch] font-display text-[54px] leading-[1.02] font-normal tracking-[-0.01em] sm:text-[74px]">
                 Money you can <em>just talk</em> about.
               </h1>
-              <p className="mt-6 max-w-[52ch] text-[17px] leading-[1.65] text-ink-secondary">
+              <p className="rise mt-6 max-w-[52ch] text-[17px] leading-[1.65] text-ink-secondary" style={{ animationDelay: "90ms" }}>
                 You tie a knot so you don&apos;t forget. Knot keeps a real double-entry
                 ledger and remembers the people, habits and commitments behind it.
               </p>
-              <div className="mt-9 flex flex-wrap items-center gap-3">
+              <div className="rise mt-9 flex flex-wrap items-center gap-3" style={{ animationDelay: "180ms" }}>
                 <Link href="/login" className={buttonClass("primary", "lg")}>
                   Try it
                 </Link>
@@ -429,7 +448,10 @@ export default function LandingPage() {
             <p className="eyebrow text-brand-ink">The whole picture</p>
             <div className="mt-8 grid gap-x-10 gap-y-9 sm:grid-cols-2 lg:grid-cols-4">
               {BREADTH.map(([title, line]) => (
-                <div key={title} className="border-t border-line pt-4">
+                <div
+                  key={title}
+                  className="group border-t border-line pt-4 transition-colors hover:border-brand-line"
+                >
                   <h3 className="text-[15px] font-medium">{title}</h3>
                   <p className="mt-1.5 text-sm leading-relaxed text-ink-secondary">{line}</p>
                 </div>
