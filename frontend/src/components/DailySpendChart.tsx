@@ -40,9 +40,16 @@ function barPath(x: number, y: number, w: number, h: number, baseline: number): 
 export default function DailySpendChart({
   daily,
   height = 180,
+  reference,
+  referenceLabel,
 }: {
   daily: DailyFlow[];
   height?: number;
+  /** A per-day figure to draw as a rule across the plot — the number the bars
+   * should be read against. Without it a bar chart only says "this day was
+   * taller than that one", which is not a question anyone has. */
+  reference?: number;
+  referenceLabel?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -71,9 +78,14 @@ export default function DailySpendChart({
   const plotW = Math.max(0, width - PAD_L - PAD_R);
   const n = daily.length;
   const slot = n > 0 ? plotW / n : 0;
-  const barW = Math.max(slot - 2, 1); // 2px gap between bars
+  // The gap scales with the slot instead of sitting at a fixed 2px: at 7 days
+  // that made hairline gaps between slabs, and at 90 it made bars thinner than
+  // the gaps between them. Bars are the data; the gap is only separation.
+  const barW = Math.max(slot - Math.min(3, slot * 0.22), 1.5);
 
-  const yMax = allZero ? 0 : niceCeil(rawMax);
+  const refValue = reference && reference > 0 ? reference : null;
+  // The rule must fit inside the axis or it silently clips off the top.
+  const yMax = allZero ? 0 : niceCeil(Math.max(rawMax, refValue ?? 0));
   const barH = (v: number) => (v <= 0 || yMax === 0 ? 0 : Math.max((v / yMax) * plotH, 1));
   const barTop = (v: number) => baseline - barH(v);
   const colX = (i: number) => PAD_L + i * slot;
@@ -115,6 +127,58 @@ export default function DailySpendChart({
                 />
               </>
             )}
+            {/* The rule the bars are read against. Dashed so it reads as a
+                target rather than as data, and labelled at the right where it
+                cannot collide with the y-axis ticks. */}
+            {!allZero && refValue !== null && refValue <= yMax && (
+              <>
+                <line
+                  x1={PAD_L}
+                  x2={width - PAD_R}
+                  y1={barTop(refValue)}
+                  y2={barTop(refValue)}
+                  className="stroke-brand"
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                  opacity={0.55}
+                />
+                {referenceLabel && width > 260 && (
+                  <>
+                    {/* Backed, and anchored left. Anchored right it sat exactly
+                        where the tallest bar usually is — the label was drawn
+                        over the data it was meant to explain. */}
+                    <rect
+                      x={PAD_L + 2}
+                      y={barTop(refValue) - 13}
+                      width={referenceLabel.length * 5.1 + 8}
+                      height={12}
+                      rx={3}
+                      className="fill-surface-card"
+                    />
+                    <text
+                      x={PAD_L + 6}
+                      y={barTop(refValue) - 4}
+                      fontSize={9}
+                      className="fill-brand-ink tabular-nums"
+                    >
+                      {referenceLabel}
+                    </text>
+                  </>
+                )}
+              </>
+            )}
+            {/* the column under the cursor, so the guide is not only a tooltip */}
+            {hover !== null && !allZero && (
+              <line
+                x1={colX(hover) + 1 + barW / 2}
+                x2={colX(hover) + 1 + barW / 2}
+                y1={TOP}
+                y2={baseline}
+                className="stroke-brand"
+                strokeWidth={1}
+                opacity={0.22}
+              />
+            )}
             {/* bars */}
             {!allZero &&
               daily.map((d, i) => {
@@ -124,8 +188,8 @@ export default function DailySpendChart({
                   <path
                     key={d.date}
                     d={barPath(colX(i) + 1, barTop(values[i]), barW, h, baseline)}
-                    className="fill-chart-spend"
-                    opacity={hover === null || hover === i ? 1 : 0.55}
+                    className={hover === i ? "fill-brand" : "fill-chart-spend"}
+                    opacity={hover === null || hover === i ? 1 : 0.45}
                   />
                 );
               })}

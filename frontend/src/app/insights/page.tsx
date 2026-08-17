@@ -153,7 +153,7 @@ function SafeToSpendCard({ data }: { data: SafeToSpend | null }) {
   if (!data) return <SkeletonCard className="h-32" />;
   const available = Number(data.available);
   return (
-    <Card pad="hero" className="hairline-gold border-brand-line bg-brand-soft">
+    <Card pad="hero" className="border border-brand-line bg-brand-soft">
       <CardTitle icon={Wallet}>Safe to spend</CardTitle>
       <p className="mb-1">
         <Money
@@ -163,7 +163,7 @@ function SafeToSpendCard({ data }: { data: SafeToSpend | null }) {
         />
       </p>
       {data.next_income ? (
-        <p className="text-xs text-ink-secondary">
+        <p className="text-xs text-ink-on-tint">
           until {data.next_income.name.toLowerCase()} in {data.next_income.in_days} day
           {data.next_income.in_days === 1 ? "" : "s"}
           {data.per_day ? (
@@ -177,11 +177,11 @@ function SafeToSpendCard({ data }: { data: SafeToSpend | null }) {
           ) : null}
         </p>
       ) : (
-        <p className="text-xs text-ink-secondary">
+        <p className="text-xs text-ink-on-tint">
           Tell the agent when you get paid and this becomes a countdown.
         </p>
       )}
-      <p className="mt-2 border-t border-brand-line pt-2 text-[11px] text-ink-secondary">
+      <p className="mt-2 border-t border-brand-line pt-2 text-[11px] text-ink-on-tint">
         <Money value={data.liquid} tone="neutral" /> in accounts −{" "}
         <Money value={data.claimed} tone="neutral" /> already claimed
       </p>
@@ -477,7 +477,7 @@ export default function InsightsPage() {
    * request resolved. */
   const aiCard =
     insights === null || insights.length > 0 || insightsBusy ? (
-      <div className="hairline-gold rounded-xl border border-brand-line bg-brand-soft p-3">
+      <div className="rounded-xl border border-brand-line bg-brand-soft p-3">
         <div className="mb-2 flex items-center justify-between gap-2">
           <h2 className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-brand-ink">
             <Logo size={13} state={insightsBusy ? "thinking" : "idle"} />
@@ -949,11 +949,24 @@ export default function InsightsPage() {
                     <div className="h-[180px] animate-pulse rounded-lg bg-surface-raised lg:h-[240px]" />
                   ) : (
                     <>
+                      {/* The rule is safe-to-spend's own per-day figure, so the
+                          bars are read against the number the product already
+                          tells you to spend to. Absent until a payday is known —
+                          an invented budget would be worse than none. */}
                       <div className="lg:hidden">
-                        <DailySpendChart daily={summary.daily} />
+                        <DailySpendChart
+                          daily={summary.daily}
+                          reference={safe?.per_day ? Number(safe.per_day) : undefined}
+                          referenceLabel={safe?.per_day ? "safe daily pace" : undefined}
+                        />
                       </div>
                       <div className="hidden lg:block">
-                        <DailySpendChart daily={summary.daily} height={240} />
+                        <DailySpendChart
+                          daily={summary.daily}
+                          height={240}
+                          reference={safe?.per_day ? Number(safe.per_day) : undefined}
+                          referenceLabel={safe?.per_day ? "safe daily pace" : undefined}
+                        />
                       </div>
                     </>
                   )}
