@@ -531,4 +531,4 @@ enforces that with seven grep gates.
 
 ## License
 
-Apache-2.0
+MIT
