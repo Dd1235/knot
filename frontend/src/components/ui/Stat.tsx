@@ -14,20 +14,20 @@ export default function Stat({
 }) {
   return (
     <div
-      className={`rounded-xl border border-line bg-surface-card text-center ${
-        size === "md" ? "p-3" : "py-1.5"
+      className={`elevated rounded-xl bg-surface-card text-center ${
+        size === "md" ? "p-3.5" : "py-1.5"
       }`}
     >
       <p
-        className={`truncate tabular-nums font-semibold ${
-          size === "md" ? "text-xl" : "text-base"
+        className={`truncate tabular-nums font-semibold tracking-[-0.01em] ${
+          size === "md" ? "text-[26px] leading-none" : "text-base"
         } ${TONE_TEXT[tone]}`}
       >
         {value}
       </p>
       <p
-        className={`mt-0.5 uppercase tracking-wide text-ink-secondary ${
-          size === "md" ? "text-[11px]" : "text-[10px]"
+        className={`uppercase text-ink-muted ${
+          size === "md" ? "eyebrow mt-2" : "mt-0.5 text-[10px] tracking-wide"
         }`}
       >
         {label}

@@ -28,7 +28,7 @@ export default function Card({
       className={`rounded-xl ${
         quiet
           ? "border border-transparent bg-surface-raised/60"
-          : "elevated border border-line bg-surface-card"
+          : "elevated bg-surface-card"
       } ${PAD[pad]} ${ruled ? "ruled" : ""} ${className}`}
     >
       {children}
@@ -44,8 +44,8 @@ export function CardTitle({
   icon?: LucideIcon;
 }) {
   return (
-    <h2 className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-ink-secondary">
-      {Glyph && <Icon as={Glyph} size={12} className="text-ink-muted" />}
+    <h2 className="eyebrow mb-2.5 flex items-center gap-1.5 text-ink-muted">
+      {Glyph && <Icon as={Glyph} size={12} className="text-ink-muted/70" />}
       {children}
     </h2>
   );

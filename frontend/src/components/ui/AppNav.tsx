@@ -54,10 +54,15 @@ export default function AppNav({
         // The longer wording now rides in `title` instead, which is advisory.
         title={d.label}
         aria-current={active ? "page" : undefined}
-        className={`shrink-0 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${
+        /* The active page is marked by a gold rule under the label, not by a
+           filled pill. A filled chip competes with the one gold fill this
+           product allows per screen — the primary action — and a nav item is
+           never that. The rule is drawn inside the header's own bottom hairline,
+           so the marker reads as part of the chrome rather than as a control. */
+        className={`relative shrink-0 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors after:absolute after:inset-x-2.5 after:-bottom-[9px] after:h-px after:transition-colors ${
           active
-            ? "bg-surface-raised text-ink-primary"
-            : "text-ink-secondary hover:bg-surface-raised hover:text-ink-primary"
+            ? "text-ink-primary after:bg-brand"
+            : "text-ink-secondary after:bg-transparent hover:text-ink-primary hover:after:bg-line-strong"
         }`}
       >
         {d.name}
